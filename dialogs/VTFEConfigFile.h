@@ -1,0 +1,12 @@
+//
+// Created by trico on 16-8-22.
+//
+
+#ifndef VTF_EDIT_REVITALIZED_VTFECONFIGFILE_H
+#define VTF_EDIT_REVITALIZED_VTFECONFIGFILE_H
+
+class VTFEConfigFile
+{
+};
+
+#endif // VTF_EDIT_REVITALIZED_VTFECONFIGFILE_H
