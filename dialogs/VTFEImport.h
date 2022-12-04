@@ -71,9 +71,11 @@ public:
 	AdvancedTab( VTFEImport *parent );
 	static void HSVtoRGB( float H, float S, float V, int rgb[3] );
 	// Version
-	QCheckBox *auxCompressionBox_;
 	QComboBox *vtfVersionBox_;
+#ifdef CHAOS_INITIATIVE
+	QCheckBox *auxCompressionBox_;
 	QComboBox *auxCompressionLevelBox_;
+#endif
 	// Gamma Correction
 	QDoubleSpinBox *gammaCorrectionBox_;
 	QCheckBox *gammaCorrectionCheckBox_;
@@ -96,11 +98,13 @@ public:
 	QDoubleSpinBox *xSharpenOptionsThresholdBox_;
 
 	// ColorCorrectionMenu
+#ifdef COLOR_CORRECTION
 	QtColorTriangle *colorCorrectionDialog_;
 	QDoubleSpinBox *colorCorrectionRedBox_;
 	QDoubleSpinBox *colorCorrectionGreenBox_;
 	QDoubleSpinBox *colorCorrectionBlueBox_;
 	QDoubleSpinBox *colorCorrectionAlphaBox_;
+#endif
 };
 
 class ResourceTab : public QDialog

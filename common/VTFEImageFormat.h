@@ -1,10 +1,4 @@
-//
-// Created by trico on 15-8-22.
-//
-
-#ifndef VTF_EDIT_REVITALIZED_VTFEIMAGEFORMAT_H
-#define VTF_EDIT_REVITALIZED_VTFEIMAGEFORMAT_H
-
+#pragma once
 #include "../libs/VTFLib/VTFLib/VTFLib.h"
 #include "../libs/VTFLib/VTFLib/stdafx.h"
 class VTFEImageFormat
@@ -78,5 +72,3 @@ public:
 		return !!m_vImageData;
 	}
 };
-
-#endif // VTF_EDIT_REVITALIZED_VTFEIMAGEFORMAT_H

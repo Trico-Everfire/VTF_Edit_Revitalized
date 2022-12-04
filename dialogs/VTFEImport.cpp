@@ -113,11 +113,10 @@ VTFErrorType VTFEImport::generateVTF()
 	{
 		options.uiFlags = flags;
 	}
-
 	pFFSArray = new vlByte *[imageAmount_];
 
 	// auto CMYK = pAdvancedTab->colorCorrectionDialog_->color().toCmyk();
-
+#ifdef COLOR_CORRECTION
 	for ( int i = 0; i < imageAmount_; i++ )
 	{
 		vlByte *imgData = new vlByte[images_[i]->getSize()];
@@ -157,7 +156,7 @@ VTFErrorType VTFEImport::generateVTF()
 		}
 		pFFSArray[i] = const_cast<vlByte *>( imgData );
 	}
-
+#endif
 	int frames = pGeneralTab->typeCombo_->currentIndex() == 0 ? imageAmount_ : 1;
 	int faces = pGeneralTab->typeCombo_->currentIndex() == 1 ? imageAmount_ : 1;
 	int slices = pGeneralTab->typeCombo_->currentIndex() == 2 ? imageAmount_ : 1;
@@ -166,6 +165,11 @@ VTFErrorType VTFEImport::generateVTF()
 		return VTFErrorType::INVALIDIMAGE;
 	if ( !vFile->IsLoaded() )
 		return VTFErrorType::INVALIDIMAGE;
+
+	if ( vFile->GetSupportsResources() )
+	{
+	}
+
 #ifdef NORMAL_GENERATION
 	if ( pGeneralTab->generateNormalMapCheckbox_->isEnabled() && pGeneralTab->generateNormalMapCheckbox_->isChecked() )
 	{
@@ -227,9 +231,10 @@ VTFErrorType VTFEImport::generateVTF()
 		// static_cast<VTFHeightConversionMethod>(pGeneralTab->heightConversionCombo_->currentData().toInt()),static_cast<VTFNormalAlphaResult>(pGeneralTab->normalAlphaResultCombo_->currentData().toInt()));
 	}
 #endif
+#ifdef CHAOS_INITIATIVE
 	if ( pAdvancedTab->auxCompressionBox_->isEnabled() && pAdvancedTab->auxCompressionBox_->isChecked() )
 		vFile->SetAuxCompressionLevel( pAdvancedTab->auxCompressionLevelBox_->currentData().toInt() );
-
+#endif
 	this->VTF = vFile;
 	delete[] pFFSArray;
 	return VTFErrorType::SUCCESSS;
@@ -350,10 +355,12 @@ VTFEImport *VTFEImport::fromVTF( QWidget *pParent, VTFLib::CVTFFile *pFile )
 
 	vVTFImport->pAdvancedTab->vtfVersionBox_->setCurrentIndex( pFile->GetMinorVersion() );
 	emit vVTFImport->pAdvancedTab->vtfVersionBox_->currentTextChanged( "7." + QString::number( pFile->GetMinorVersion() ) );
+#ifdef CHAOS_INITIATIVE
 	vVTFImport->pAdvancedTab->auxCompressionBox_->setChecked( pFile->GetAuxCompressionLevel() > 0 );
 	emit vVTFImport->pAdvancedTab->auxCompressionBox_->clicked( pFile->GetAuxCompressionLevel() > 0 );
 	if ( pFile->GetAuxCompressionLevel() > 0 )
 		vVTFImport->pAdvancedTab->auxCompressionLevelBox_->setCurrentIndex( pFile->GetAuxCompressionLevel() );
+#endif
 	vVTFImport->pGeneralTab->generateMipmapsCheckbox_->setChecked( pFile->GetMipmapCount() > 0 );
 	emit vVTFImport->pGeneralTab->generateMipmapsCheckbox_->clicked( pFile->GetMipmapCount() > 0 );
 	vVTFImport->pGeneralTab->typeCombo_->setCurrentIndex( type );
@@ -670,7 +677,9 @@ AdvancedTab::AdvancedTab( VTFEImport *parent ) :
 	Miscellaneous();
 	// DTXCompression(); //doesn't seem to be used in modern VTFEdit or VTFLib.
 	LuminanceWeights();
+#ifdef COLOR_CORRECTION
 	ColorCorrectionMenu();
+#endif
 	//	UnsharpenMaskOptions();
 	//	XSharpenOptions(); //According to ~smead on discord, these are used by the old DTX library to apply filters to a
 	// filter... new DTX library doesn't have this
@@ -684,13 +693,17 @@ void AdvancedTab::VersionMenu()
 	label1->setText( tr( "VTF Version:" ) );
 	vBLayout->addWidget( label1, 0, 0, Qt::AlignLeft );
 	vtfVersionBox_ = new QComboBox( this );
+#ifdef CHAOS_INITIATIVE
 	for ( int i = 0; i <= VTF_MINOR_VERSION; i++ )
+#else
+	for ( int i = 0; i <= 5; i++ )
+#endif
 	{
-		vtfVersionBox_->addItem( QString( tr( "7." ) ) + QString::number( i ), i );
+		vtfVersionBox_->addItem( QString::number( VTF_MAJOR_VERSION ) + "." + QString::number( i ), i );
 	}
 	vtfVersionBox_->setCurrentIndex( vtfVersionBox_->count() - 2 );
 	vBLayout->addWidget( vtfVersionBox_, 0, 1, Qt::AlignRight );
-
+#ifdef CHAOS_INITIATIVE
 	auxCompressionBox_ = new QCheckBox( this );
 	auxCompressionBox_->setText( tr( "AUX Compression" ) );
 	vBLayout->addWidget( auxCompressionBox_, 1, 0, Qt::AlignLeft );
@@ -727,7 +740,7 @@ void AdvancedTab::VersionMenu()
 			auxCompressionLevelBox_->setDisabled( !checked );
 			label2->setDisabled( !checked );
 		} );
-
+#endif
 	vMainLayout->addWidget( vBoxVersion, 0, 0 );
 }
 
@@ -828,7 +841,7 @@ void AdvancedTab::LuminanceWeights()
 
 	vMainLayout->addWidget( vBoxDTXCompression, 0, 1 );
 }
-
+#ifdef COLOR_CORRECTION
 void AdvancedTab::ColorCorrectionMenu()
 {
 	auto vBoxColorCorrection = new QGroupBox( tr( "Color Correction" ), this );
@@ -926,7 +939,7 @@ void AdvancedTab::ColorCorrectionMenu()
 
 	vMainLayout->addWidget( vBoxColorCorrection, 1, 1 );
 }
-
+#endif
 void AdvancedTab::HSVtoRGB( float H, float S, float V, int rgb[3] )
 {
 	if ( H > 360 || H < 0 || S > 100 || S < 0 || V > 100 || V < 0 )

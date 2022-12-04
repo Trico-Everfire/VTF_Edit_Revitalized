@@ -7,6 +7,24 @@ set(CMAKE_BUILD_RPATH_USE_ORIGIN TRUE)
 set(CMAKE_INSTALL_RPATH $ORIGIN)
 set(CMAKE_CXX_STANDARD 20)
 
+option(CHAOS_INITIATIVE "Build Chaos Specific" OFF)
+
+if(CHAOS_INITIATIVE)
+    add_definitions(-DCHAOS_INITIATIVE)
+endif()
+
+option(COLOR_CORRECTION "Build Color Correction (WIP)" OFF)
+
+if(COLOR_CORRECTION)
+    add_definitions(-DCOLOR_CORRECTION)
+endif()
+
+option(NORMAL_GENERATION "Build Normal Generation (WIP)" OFF)
+
+if(NORMAL_GENERATION)
+    add_definitions(-DNORMAL_GENERATION)
+endif()
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
