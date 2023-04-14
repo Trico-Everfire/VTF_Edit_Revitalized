@@ -19,7 +19,7 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v2
         with:
-          version: 6.4.1
+          version: 5.15.2
           host: linux
           target: desktop
           dir: '${{github.workspace}}/libs/Qt'
@@ -61,7 +61,7 @@ jobs:
         with:
           dir: '${{github.workspace}}/libs/Qt'
 
-          version: 6.4.1
+          version: 5.15.2
           arch: win64_msvc2019_64
 
       - name: Set up MSVC
