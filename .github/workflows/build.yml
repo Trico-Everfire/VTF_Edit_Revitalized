@@ -1,0 +1,89 @@
+name: Build
+on:
+  push:
+    branches: [ master, rework ]
+  workflow_dispatch: # nothing here
+jobs:
+  build-linux:
+    strategy:
+      matrix:
+        build_type: [ Debug, Release ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Checkout submodules
+        run: git submodule update --init --recursive
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v2
+        with:
+          version: 6.4.1
+          host: linux
+          target: desktop
+          dir: '${{github.workspace}}/libs/Qt'
+
+      - name: Configure CMake
+        run: cmake -G "Unix Makefiles" -B build -DCMAKE_BUILD_TYPE=${{matrix.build_type}} -DQT_BASEDIR='${{github.workspace}}/libs/Qt/Qt/6.4.1/gcc_64'
+
+      - name: Build
+        run: cmake --build ${{github.workspace}}/build --config ${{matrix.build_type}}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: vtf-edit-revitalized-linux-${{matrix.build_type}}
+          path: |
+            ${{github.workspace}}/build/VTF_Edit_Revitalized
+            ${{github.workspace}}/build/tls/*.so*
+            ${{github.workspace}}/build/imageformats/*.so*
+            ${{github.workspace}}/build/platforms/*.so*
+            ${{github.workspace}}/build/*.so*
+
+  build-msvc:
+    strategy:
+      matrix:
+        build_type: [ Debug, Release ]
+    runs-on: windows-2019
+    defaults:
+      run:
+        shell: cmd
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Checkout submodules
+        run: git submodule update --init --recursive
+
+      - name: Install Qt6
+        uses: jurplel/install-qt-action@v2.14.0
+        with:
+          dir: '${{github.workspace}}/libs/Qt'
+
+          version: 6.4.1
+          arch: win64_msvc2019_64
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure CMake
+        env:
+          CMAKE_PREFIX_PATH: ${{env.Qt6_Dir}}
+        run: cmake -G "Ninja" -B build -DCMAKE_BUILD_TYPE=${{matrix.build_type}} -DQT_BASEDIR=${{github.workspace}}\libs\Qt\Qt\6.4.1\msvc2019_64
+
+      - name: Build
+        run: cmake --build build --config ${{matrix.build_type}}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: vtf-edit-revitalized-windows-${{matrix.build_type}}
+          path: |
+            ${{github.workspace}}\build\*.exe
+            ${{github.workspace}}\build\*.dll
+            ${{github.workspace}}\build\platforms\*.dll
+            ${{github.workspace}}\build\tls\*.dll
+            ${{github.workspace}}\build\imageformats\*.dll
+            ${{github.workspace}}/libs/Steam-Workshop-API/sdk/openssl/*.dll
+            
