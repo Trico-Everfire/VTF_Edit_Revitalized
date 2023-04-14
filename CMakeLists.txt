@@ -98,11 +98,11 @@ set(SRC
 
 add_subdirectory(libs/VTFLib)
 add_subdirectory(libs/fmt)
-add_subdirectory(libs/QColorWheel)
+#add_subdirectory(libs/QColorWheel)
 add_subdirectory(libs/SpeedyKV)
 
 add_executable(${PROJECT_NAME} ${SRC})
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt5::Widgets Qt5::Core Qt5::Gui vtflib fmt::fmt QColorWheel keyvalues)
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt5::Widgets Qt5::Core Qt5::Gui vtflib fmt::fmt keyvalues)
 
 target_include_directories(${PROJECT_NAME} PRIVATE "${QT_INCLUDE} ${QT_INCLUDE}/QtWidgets" "${QT_INCLUDE}/QtGui" "${QT_INCLUDE}/QtCore")
 
