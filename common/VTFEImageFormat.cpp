@@ -1,1 +1,1 @@
-#include "VTFEImageFormat.h"
+#include "../src/VTFEImageFormat.h"

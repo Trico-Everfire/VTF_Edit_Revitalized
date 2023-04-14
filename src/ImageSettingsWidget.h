@@ -1,3 +1,4 @@
+#pragma once
 #include "ImageViewWidget.h"
 
 #include <QCheckBox>

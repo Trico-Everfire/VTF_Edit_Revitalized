@@ -78,7 +78,16 @@ void ImageViewWidget::paintEvent( QPaintEvent *event )
 
 		if ( requestColorChange )
 		{
-			QImage alphaChannel = image_.convertToFormat( QImage::Format_Alpha8 );
+			//			for ( int y = 0; y < image_.height(); ++y )
+			//			{
+			//				QRgb *line = reinterpret_cast<QRgb *>( image_.scanLine( y ) );
+			//				for ( int x = 0; x < image_.width(); ++x )
+			//				{
+			//					QRgb &rgb = line[x];
+			//					rgb = qRgba( qRed( red_ ? rgb : 0 ), qGreen( green_ ? rgb : 0 ), qBlue( blue_ ? rgb : 0 ), qAlpha( alpha_ ? rgb : 255 ) );
+			//				}
+			//			}
+
 			for ( int i = 0; i < ( image_.width() ); i++ )
 				for ( int j = 0; j < image_.height(); j++ )
 				{

@@ -1,7 +1,10 @@
 #include "VTFEImport.h"
 
-#include "../common/flagsandformats.hpp"
-#include "../widgets/ImageSettingsWidget.h"
+#define STB_IMAGE_IMPLEMENTATION
+
+#include "../libs/stb/stb_image.h"
+#include "ImageSettingsWidget.h"
+#include "flagsandformats.hpp"
 
 #include <QAction>
 #include <QCheckBox>
@@ -15,113 +18,167 @@
 #include <QGroupBox>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QTabWidget>
 #include <cmath>
 
-VTFEImport::VTFEImport( QWidget *pParent, const QString &filePath ) :
+VTFEImport::VTFEImport( QWidget *pParent, const QString &filePath, bool &hasData ) :
 	QDialog( pParent )
 {
-	images_ = new VTFEImageFormat *[1];
-	addImage( filePath );
-	this->setWindowTitle( tr( "VTF Options" ) );
+	hasData = true;
 
-	// filling default information.
-	options.ImageFormat = VTFImageFormat::IMAGE_FORMAT_DXT5;
-	options.uiVersion[0] = 7;
-	options.uiVersion[1] = 5;
-	options.uiStartFrame = 0;
-	options.bResize = true;
-	options.bMipmaps = true;
-	options.ResizeMethod = VTFResizeMethod::RESIZE_NEAREST_POWER2;
-	options.bResizeClamp = true;
-	options.uiResizeClampWidth = 2048;
-	options.uiResizeClampHeight = 2048;
+	AddImage( filePath );
+
+	if ( imageList.isEmpty() )
+	{
+		hasData = false;
+		return;
+	}
+
+	SetDefaults();
 
 	InitializeWidgets();
+
+	pGeneralTab->pFormatCombo->setCurrentIndex( pGeneralTab->pFormatCombo->findData( imageList[0]->getFormat() ) );
 }
 
-VTFEImport::VTFEImport( QWidget *pParent, const QStringList &filePaths ) :
+VTFEImport::VTFEImport( QWidget *pParent, const QStringList &filePaths, bool &hasData ) :
 	QDialog( pParent )
 {
-	images_ = new VTFEImageFormat *[filePaths.count()];
+	hasData = true;
+
 	for ( int i = 0; i < filePaths.count(); i++ )
-		addImage( filePaths[i] );
+		AddImage( filePaths[i] );
 
-	this->setWindowTitle( tr( "VTF Options" ) );
+	if ( imageList.isEmpty() )
+	{
+		hasData = false;
+		return;
+	}
 
-	// filling default information.
-	options.ImageFormat = VTFImageFormat::IMAGE_FORMAT_DXT5;
-	options.uiVersion[0] = 7;
-	options.uiVersion[1] = 5;
-	options.uiStartFrame = 0;
-	options.bResize = true;
-	options.bMipmaps = true;
-	options.ResizeMethod = VTFResizeMethod::RESIZE_NEAREST_POWER2;
-	options.bResizeClamp = true;
-	options.uiResizeClampWidth = 2048;
-	options.uiResizeClampHeight = 2048;
+	SetDefaults();
 
 	InitializeWidgets();
+
+	pGeneralTab->pFormatCombo->setCurrentIndex( pGeneralTab->pFormatCombo->findData( imageList[0]->getFormat() ) );
 }
 
-void VTFEImport::addImage( const QString &filePath )
+void VTFEImport::SetDefaults()
 {
-	auto tempImage = QImage( filePath );
-	auto tempImage1 = tempImage.convertToFormat( QImage::Format_RGBA8888 );
-	images_[imageAmount_] = new VTFEImageFormat(
-		const_cast<vlByte *>( tempImage1.constBits() ), tempImage1.width(), tempImage1.height(), 0, IMAGE_FORMAT_RGBA8888 );
-	imageAmount_++;
+	this->setWindowTitle( tr( "VTF Options" ) );
+	// filling default information.
+	VTFCreateOptions.ImageFormat = VTFImageFormat::IMAGE_FORMAT_RGBA32323232F;
+	VTFCreateOptions.uiVersion[0] = 7;
+	VTFCreateOptions.uiVersion[1] = 5;
+	VTFCreateOptions.uiStartFrame = 0;
+	VTFCreateOptions.bResize = true;
+	VTFCreateOptions.bMipmaps = true;
+	VTFCreateOptions.ResizeMethod = VTFResizeMethod::RESIZE_NEAREST_POWER2;
+	VTFCreateOptions.bResizeClamp = true;
+	VTFCreateOptions.uiResizeClampWidth = 2048;
+	VTFCreateOptions.uiResizeClampHeight = 2048;
 }
 
-VTFErrorType VTFEImport::generateVTF()
+void VTFEImport::AddImage( const QString &qString )
 {
-	if ( !images_ )
-		return VTFErrorType::NODATA;
+	int x, y, n;
+
+	const char *file = qString.toUtf8().constData();
+
+	if ( !stbi_is_hdr( file ) )
+	{
+		vlByte *data = stbi_load( file, &x, &y, &n, 4 );
+
+		if ( !data )
+			return;
+
+		imageList[imageList.size()] = new VTFEImageFormat(
+			data, x, y, 0, IMAGE_FORMAT_RGBA8888 );
+
+		stbi_image_free( data );
+	}
+	else
+	{
+		float *data = stbi_loadf( file, &x, &y, &n, 0 );
+
+		if ( !data )
+			return;
+
+		auto convertedData = reinterpret_cast<vlByte *>( data );
+
+		tagVTFImageFormat format = n > 3 ? IMAGE_FORMAT_RGBA32323232F : IMAGE_FORMAT_RGB323232F;
+
+		imageList[imageList.size()] = new VTFEImageFormat(
+			convertedData, x, y, 0, format );
+
+		stbi_image_free( data );
+	}
+}
+
+VTFLib::CVTFFile *VTFEImport::GenerateVTF( VTFErrorType &err )
+{
+	if ( imageList.isEmpty() )
+	{
+		err = VTFErrorType::NO_DATA;
+		return nullptr;
+	}
 
 	auto vFile = new VTFLib::CVTFFile;
 
-	options.ImageFormat = static_cast<tagVTFImageFormat>( pGeneralTab->formatCombo_->currentData().toInt() );
-	options.uiVersion[0] = 7;
-	options.uiVersion[1] = pAdvancedTab->vtfVersionBox_->currentData().toInt();
-	options.bResize = ( pGeneralTab->resizeMethodCombo_->isEnabled() && pGeneralTab->resizeCheckbox_->isChecked() );
-	options.bMipmaps =
-		( pGeneralTab->generateMipmapsCheckbox_->isEnabled() && pGeneralTab->generateMipmapsCheckbox_->isChecked() );
-	options.MipmapFilter = static_cast<VTFMipmapFilter>( pGeneralTab->mipmapFilterCombo_->currentData().toInt() );
-	options.ResizeMethod = static_cast<VTFResizeMethod>( pGeneralTab->resizeMethodCombo_->currentData().toInt() );
-	options.bResizeClamp = ( pGeneralTab->clampCheckbox_->isEnabled() && pGeneralTab->clampCheckbox_->isChecked() );
+	VTFCreateOptions.ImageFormat = static_cast<tagVTFImageFormat>( pGeneralTab->pFormatCombo->currentData().toInt() );
+	VTFCreateOptions.uiVersion[0] = 7;
+	VTFCreateOptions.uiVersion[1] = pAdvancedTab->pVtfVersionBox->currentData().toInt();
+	VTFCreateOptions.bResize = ( pGeneralTab->pResizeMethodCombo->isEnabled() && pGeneralTab->pResizeCheckbox->isChecked() );
+	VTFCreateOptions.bMipmaps =
+		( pGeneralTab->pGenerateMipmapsCheckbox->isEnabled() && pGeneralTab->pGenerateMipmapsCheckbox->isChecked() );
+	VTFCreateOptions.MipmapFilter = static_cast<VTFMipmapFilter>( pGeneralTab->pMipmapFilterCombo->currentData().toInt() );
+	VTFCreateOptions.ResizeMethod = static_cast<VTFResizeMethod>( pGeneralTab->pResizeMethodCombo->currentData().toInt() );
+	VTFCreateOptions.bResizeClamp = ( pGeneralTab->pClampCheckbox->isEnabled() && pGeneralTab->pClampCheckbox->isChecked() );
 	;
-	options.uiResizeClampWidth = pGeneralTab->clampWidthCombo_->currentData().toInt();
-	options.uiResizeClampHeight = pGeneralTab->clampHeightCombo_->currentData().toInt();
-	options.bReflectivity =
-		( pAdvancedTab->computeReflectivityCheckBox_->isEnabled() &&
-		  pAdvancedTab->computeReflectivityCheckBox_->isChecked() );
-	options.sReflectivity[0] = pAdvancedTab->luminanceWeightRedBox_->value();
-	options.sReflectivity[1] = pAdvancedTab->luminanceWeightGreenBox_->value();
-	options.sReflectivity[2] = pAdvancedTab->luminanceWeightBlueBox_->value();
-	options.bThumbnail =
-		( pAdvancedTab->generateThumbnailCheckBox_->isEnabled() &&
-		  pAdvancedTab->generateThumbnailCheckBox_->isChecked() );
-	options.bGammaCorrection =
-		( pAdvancedTab->gammaCorrectionCheckBox_->isEnabled() && pAdvancedTab->gammaCorrectionCheckBox_->isChecked() );
-	options.sGammaCorrection = pAdvancedTab->gammaCorrectionBox_->value();
-	options.bSphereMap =
-		( pAdvancedTab->generateSphereMapCheckBox_->isEnabled() &&
-		  pAdvancedTab->generateSphereMapCheckBox_->isChecked() );
-	if ( flags != 0 )
-	{
-		options.uiFlags = flags;
-	}
-	pFFSArray = new vlByte *[imageAmount_];
+	VTFCreateOptions.uiResizeClampWidth = pGeneralTab->pClampWidthCombo->currentData().toInt();
+	VTFCreateOptions.uiResizeClampHeight = pGeneralTab->pClampHeightCombo->currentData().toInt();
+	VTFCreateOptions.bReflectivity =
+		( pAdvancedTab->pComputeReflectivityCheckBox->isEnabled() &&
+		  pAdvancedTab->pComputeReflectivityCheckBox->isChecked() );
+	VTFCreateOptions.sReflectivity[0] = pAdvancedTab->pLuminanceWeightRedBox->value();
+	VTFCreateOptions.sReflectivity[1] = pAdvancedTab->pLuminanceWeightGreenBox->value();
+	VTFCreateOptions.sReflectivity[2] = pAdvancedTab->pLuminanceWeightBlueBox->value();
+	VTFCreateOptions.bThumbnail =
+		( pAdvancedTab->pGenerateThumbnailCheckBox->isEnabled() &&
+		  pAdvancedTab->pGenerateThumbnailCheckBox->isChecked() );
+	VTFCreateOptions.bGammaCorrection =
+		( pAdvancedTab->pGammaCorrectionCheckBox->isEnabled() && pAdvancedTab->pGammaCorrectionCheckBox->isChecked() );
+	VTFCreateOptions.sGammaCorrection = pAdvancedTab->pGammaCorrectionBox->value();
+	VTFCreateOptions.bSphereMap =
+		( pAdvancedTab->pGenerateSphereMapCheckBox->isEnabled() &&
+		  pAdvancedTab->pGenerateSphereMapCheckBox->isChecked() );
 
-	// auto CMYK = pAdvancedTab->colorCorrectionDialog_->color().toCmyk();
-#ifdef COLOR_CORRECTION
-	for ( int i = 0; i < imageAmount_; i++ )
+	VTFCreateOptions.bSRGB = pGeneralTab->pSRGBCheckbox->isChecked();
+
+	if ( vtfImageFlags != 0 )
 	{
-		vlByte *imgData = new vlByte[images_[i]->getSize()];
-		memcpy( imgData, images_[i]->getData(), images_[i]->getSize() );
-		//		//int bpp = VTFLib::CVTFFile::GetImageFormatInfo(images_[i]->getFormat()).uiBytesPerPixel;
+		VTFCreateOptions.uiFlags = vtfImageFlags;
+	}
+
+	auto pFFSArray = new vlByte *[imageList.size()];
+
+	for ( int i = 0; i < imageList.size(); i++ )
+	{
+		vlByte *imgData;
+		if ( !( VTFCreateOptions.ImageFormat == IMAGE_FORMAT_RGBA32323232F || VTFCreateOptions.ImageFormat == IMAGE_FORMAT_RGB323232F || VTFCreateOptions.ImageFormat == IMAGE_FORMAT_RGBA16161616F ) )
+		{
+			imgData = new vlByte[VTFLib::CVTFFile::ComputeImageSize( imageList[i]->getWidth(), imageList[i]->getHeight(), 1, IMAGE_FORMAT_RGBA8888 )];
+			VTFLib::CVTFFile::Convert( imageList[i]->getData(), imgData, imageList[i]->getWidth(), imageList[i]->getHeight(), imageList[i]->getFormat(), IMAGE_FORMAT_RGBA8888 );
+		}
+		else
+		{
+			imgData = new vlByte[imageList[i]->getSize()];
+			memcpy( imgData, imageList[i]->getData(), imageList[i]->getSize() );
+		}
+
+#ifdef COLOR_CORRECTION
 		for ( int s = 0; s < images_[i]->getSize(); s += 4 )
 		{
 			//			int rgb1[3] = {0, 0, 0};
@@ -154,20 +211,89 @@ VTFErrorType VTFEImport::generateVTF()
 			//			imgData[s+2] = currentColor->blue();
 			// imgData[s+3] = (imgData[s + 3] - HSV.alpha()) * 2;
 		}
+#endif
+
 		pFFSArray[i] = const_cast<vlByte *>( imgData );
 	}
-#endif
-	int frames = pGeneralTab->typeCombo_->currentIndex() == 0 ? imageAmount_ : 1;
-	int faces = pGeneralTab->typeCombo_->currentIndex() == 1 ? imageAmount_ : 1;
-	int slices = pGeneralTab->typeCombo_->currentIndex() == 2 ? imageAmount_ : 1;
 
-	if ( !vFile->Create( images_[0]->getWidth(), images_[0]->getHeight(), frames, faces, slices, pFFSArray, options ) )
-		return VTFErrorType::INVALIDIMAGE;
+	int frames = pGeneralTab->pTypeCombo->currentIndex() == 0 ? imageList.size() : 1;
+	int faces = pGeneralTab->pTypeCombo->currentIndex() == 1 ? imageList.size() : 1;
+	int slices = pGeneralTab->pTypeCombo->currentIndex() == 2 ? imageList.size() : 1;
+
+	if ( !vFile->Create( imageList[0]->getWidth(), imageList[0]->getHeight(), frames, faces, slices, pFFSArray, VTFCreateOptions, imageList[0]->getFormat() ) )
+	{
+		err = VTFErrorType::INVALID_IMAGE;
+		delete vFile;
+		return nullptr;
+	};
+
+	vFile->SetFlag( VTFImageFlag::TEXTUREFLAGS_SRGB, VTFCreateOptions.bSRGB );
+
 	if ( !vFile->IsLoaded() )
-		return VTFErrorType::INVALIDIMAGE;
+	{
+		err = VTFErrorType::INVALID_IMAGE;
+		delete vFile;
+		return nullptr;
+	}
 
 	if ( vFile->GetSupportsResources() )
 	{
+		bool bResult = true;
+
+		if ( pResourceTab->pLodControlResourceCheckBox->isChecked() )
+		{
+			SVTFTextureLODControlResource LODControlResource;
+			memset( &LODControlResource, 0, sizeof( SVTFTextureLODControlResource ) );
+			LODControlResource.ResolutionClampU = pResourceTab->pControlResourceCrampUBox->value();
+			LODControlResource.ResolutionClampV = pResourceTab->pControlResourceCrampVBox->value();
+
+			bResult &= vFile->SetResourceData( VTF_RSRC_TEXTURE_LOD_SETTINGS, sizeof( SVTFTextureLODControlResource ), &LODControlResource ) != nullptr;
+		}
+
+		if ( pResourceTab->pCreateInformationResourceCheckBox->isChecked() )
+		{
+			auto pVMTFile = new VTFLib::CVMTFile();
+
+			pVMTFile->Create( "Information" );
+			if ( pResourceTab->pInformationResourceAuthor->text().length() > 0 )
+			{
+				pVMTFile->GetRoot()->AddStringNode( "Author", pResourceTab->pInformationResourceAuthor->text().toUtf8().constData() );
+			}
+			if ( pResourceTab->pInformationResouceContact->text().length() > 0 )
+			{
+				pVMTFile->GetRoot()->AddStringNode( "Contact", pResourceTab->pInformationResouceContact->text().toUtf8().constData() );
+			}
+			if ( pResourceTab->pInformationResouceVersion->text().length() > 0 )
+			{
+				pVMTFile->GetRoot()->AddStringNode( "Version", pResourceTab->pInformationResouceVersion->text().toUtf8().constData() );
+			}
+			if ( pResourceTab->pInformationResouceModification->text().length() > 0 )
+			{
+				pVMTFile->GetRoot()->AddStringNode( "Modification", pResourceTab->pInformationResouceModification->text().toUtf8().constData() );
+			}
+			if ( pResourceTab->pInformationResouceDescription->text().length() > 0 )
+			{
+				pVMTFile->GetRoot()->AddStringNode( "Description", pResourceTab->pInformationResouceDescription->text().toUtf8().constData() );
+			}
+			if ( pResourceTab->pInformationResouceComments->text().length() > 0 )
+			{
+				pVMTFile->GetRoot()->AddStringNode( "Comments", pResourceTab->pInformationResouceComments->text().toUtf8().constData() );
+			}
+
+			vlUInt uiSize = 0;
+			vlByte lpBuffer[65536];
+			if ( pVMTFile->Save( lpBuffer, sizeof( lpBuffer ), uiSize ) )
+			{
+				bResult &= vFile->SetResourceData( VTF_RSRC_KEY_VALUE_DATA, uiSize, lpBuffer ) != nullptr;
+			}
+
+			delete pVMTFile;
+		}
+
+		if ( !bResult )
+		{
+			QMessageBox::warning( this, "Failed to apply resources", "Unable to apply resources. ", QMessageBox::Ok );
+		}
 	}
 
 #ifdef NORMAL_GENERATION
@@ -231,23 +357,24 @@ VTFErrorType VTFEImport::generateVTF()
 		// static_cast<VTFHeightConversionMethod>(pGeneralTab->heightConversionCombo_->currentData().toInt()),static_cast<VTFNormalAlphaResult>(pGeneralTab->normalAlphaResultCombo_->currentData().toInt()));
 	}
 #endif
+
 #ifdef CHAOS_INITIATIVE
-	if ( pAdvancedTab->auxCompressionBox_->isEnabled() && pAdvancedTab->auxCompressionBox_->isChecked() )
-		vFile->SetAuxCompressionLevel( pAdvancedTab->auxCompressionLevelBox_->currentData().toInt() );
+	if ( pAdvancedTab->pAuxCompressionBox->isEnabled() && pAdvancedTab->pAuxCompressionBox->isChecked() )
+		vFile->SetAuxCompressionLevel( pAdvancedTab->pAuxCompressionLevelBox->currentData().toInt() );
 #endif
-	this->VTF = vFile;
+
+	for ( int i = 0; i < imageList.size(); i++ )
+		delete[] pFFSArray[i];
+
 	delete[] pFFSArray;
-	return VTFErrorType::SUCCESSS;
+
+	err = VTFErrorType::SUCCESS;
+	return vFile;
 }
 
 vlBool VTFEImport::IsPowerOfTwo( vlUInt uiSize )
 {
 	return uiSize > 0 && ( uiSize & ( uiSize - 1 ) ) == 0;
-}
-
-VTFLib::CVTFFile *VTFEImport::getVTF()
-{
-	return this->VTF;
 }
 
 VTFEImport::VTFEImport( QWidget *pParent ) :
@@ -284,26 +411,27 @@ void VTFEImport::InitializeWidgets()
 			vRLayout->addWidget( vISW, 0, 0 );
 			vRLayout->addWidget( scrollArea, 0, 1, Qt::AlignCenter );
 
-			auto vtfFile = generateVTF();
-			if ( vtfFile == SUCCESSS )
+			VTFErrorType err;
+			auto vtfFile = GenerateVTF( err );
+			if ( err == SUCCESS )
 			{
-				vIVW->set_vtf( VTF );
-				vISW->set_vtf( VTF );
+				vIVW->set_vtf( vtfFile );
+				vISW->set_vtf( vtfFile );
 			}
 			scrollArea->resize( dialog->width() + vISW->width(), dialog->height() );
 			dialog->exec();
-			delete VTF;
+			delete vtfFile;
 		} );
 	vBLayout->addWidget( preview, 1, 0, Qt::AlignLeft );
 
-	QDialogButtonBox *blayoutBox = new QDialogButtonBox( this );
+	auto blayoutBox = new QDialogButtonBox( this );
 	auto accept = blayoutBox->addButton( "Accept", QDialogButtonBox::AcceptRole );
 	auto cancelled = blayoutBox->addButton( "Cancel", QDialogButtonBox::RejectRole );
 	connect(
 		accept, &QPushButton::pressed,
 		[this]
 		{
-			cancelled_ = false;
+			isCancelled = false;
 			close();
 		} );
 	connect(
@@ -315,7 +443,7 @@ void VTFEImport::InitializeWidgets()
 	vBLayout->addWidget( blayoutBox, 1, 1, Qt::AlignRight );
 }
 
-VTFEImport *VTFEImport::fromVTF( QWidget *pParent, VTFLib::CVTFFile *pFile )
+VTFEImport *VTFEImport::FromVTF( QWidget *pParent, VTFLib::CVTFFile *pFile )
 {
 	auto vVTFImport = new VTFEImport( pParent );
 
@@ -332,50 +460,43 @@ VTFEImport *VTFEImport::fromVTF( QWidget *pParent, VTFLib::CVTFFile *pFile )
 		type = 2;
 	}
 
-	const bool hasAlpha = VTFLib::CVTFFile::GetImageFormatInfo( pFile->GetFormat() ).uiAlphaBitsPerPixel > 0;
-	vVTFImport->images_ = new VTFEImageFormat *[fImageAmount];
-
 	for ( int i = 0; i < fImageAmount; i++ )
 	{
 		vlUInt frames = type == 0 ? i + 1 : 1;
 		vlUInt faces = type == 1 ? i + 1 : 1;
 		vlUInt slices = type == 2 ? i + 1 : 1;
 
-		auto size = VTFLib::CVTFFile::ComputeImageSize( pFile->GetWidth(), pFile->GetHeight(), 1, IMAGE_FORMAT_RGBA8888 );
-		auto pDest = static_cast<vlByte *>( malloc( size ) );
-		qInfo() << VTFLib::CVTFFile::ConvertToRGBA8888(
-			pFile->GetData( frames, faces, slices, 0 ), pDest, pFile->GetWidth(), pFile->GetHeight(), pFile->GetFormat() );
-		vVTFImport->images_[vVTFImport->imageAmount_] =
-			new VTFEImageFormat( pDest, pFile->GetWidth(), pFile->GetHeight(), pFile->GetDepth(), IMAGE_FORMAT_RGBA8888 );
-		vVTFImport->imageAmount_++;
-		free( pDest );
+		vVTFImport->imageList[vVTFImport->imageList.size()] =
+			new VTFEImageFormat( pFile->GetData( frames, faces, slices, 0 ), pFile->GetWidth(), pFile->GetHeight(), pFile->GetDepth(), pFile->GetFormat() );
 	}
 
 	vVTFImport->InitializeWidgets();
 
-	vVTFImport->pAdvancedTab->vtfVersionBox_->setCurrentIndex( pFile->GetMinorVersion() );
-	emit vVTFImport->pAdvancedTab->vtfVersionBox_->currentTextChanged( "7." + QString::number( pFile->GetMinorVersion() ) );
+	vVTFImport->pAdvancedTab->pVtfVersionBox->setCurrentIndex( pFile->GetMinorVersion() );
+	emit vVTFImport->pAdvancedTab->pVtfVersionBox->currentTextChanged( "7." + QString::number( pFile->GetMinorVersion() ) );
 #ifdef CHAOS_INITIATIVE
-	vVTFImport->pAdvancedTab->auxCompressionBox_->setChecked( pFile->GetAuxCompressionLevel() > 0 );
-	emit vVTFImport->pAdvancedTab->auxCompressionBox_->clicked( pFile->GetAuxCompressionLevel() > 0 );
+	vVTFImport->pAdvancedTab->pAuxCompressionBox->setChecked( pFile->GetAuxCompressionLevel() > 0 );
+	emit vVTFImport->pAdvancedTab->pAuxCompressionBox->clicked( pFile->GetAuxCompressionLevel() > 0 );
 	if ( pFile->GetAuxCompressionLevel() > 0 )
-		vVTFImport->pAdvancedTab->auxCompressionLevelBox_->setCurrentIndex( pFile->GetAuxCompressionLevel() );
+		vVTFImport->pAdvancedTab->pAuxCompressionLevelBox->setCurrentIndex( pFile->GetAuxCompressionLevel() );
 #endif
-	vVTFImport->pGeneralTab->generateMipmapsCheckbox_->setChecked( pFile->GetMipmapCount() > 0 );
-	emit vVTFImport->pGeneralTab->generateMipmapsCheckbox_->clicked( pFile->GetMipmapCount() > 0 );
-	vVTFImport->pGeneralTab->typeCombo_->setCurrentIndex( type );
-	vVTFImport->pGeneralTab->typeCombo_->currentTextChanged( QString::number( type ) );
-	vVTFImport->pGeneralTab->formatCombo_->setCurrentIndex(
-		vVTFImport->pGeneralTab->formatCombo_->findData( pFile->GetFormat() ) );
+	vVTFImport->pGeneralTab->pGenerateMipmapsCheckbox->setChecked( pFile->GetMipmapCount() > 0 );
+	emit vVTFImport->pGeneralTab->pGenerateMipmapsCheckbox->clicked( pFile->GetMipmapCount() > 0 );
+	vVTFImport->pGeneralTab->pTypeCombo->setCurrentIndex( type );
+	vVTFImport->pGeneralTab->pTypeCombo->currentTextChanged( QString::number( type ) );
+	vVTFImport->pGeneralTab->pFormatCombo->setCurrentIndex(
+		vVTFImport->pGeneralTab->pFormatCombo->findData( pFile->GetFormat() ) );
 	vlSingle r;
 	vlSingle g;
 	vlSingle b;
 	pFile->GetReflectivity( r, g, b );
-	vVTFImport->pAdvancedTab->luminanceWeightRedBox_->setValue( r );
-	vVTFImport->pAdvancedTab->luminanceWeightGreenBox_->setValue( g );
-	vVTFImport->pAdvancedTab->luminanceWeightBlueBox_->setValue( b );
+	vVTFImport->pAdvancedTab->pLuminanceWeightRedBox->setValue( r );
+	vVTFImport->pAdvancedTab->pLuminanceWeightGreenBox->setValue( g );
+	vVTFImport->pAdvancedTab->pLuminanceWeightBlueBox->setValue( b );
 
-	vVTFImport->flags = pFile->GetFlags();
+	vVTFImport->pGeneralTab->pSRGBCheckbox->setChecked( pFile->GetFlag( VTFImageFlag::TEXTUREFLAGS_SRGB ) );
+
+	vVTFImport->vtfImageFlags = pFile->GetFlags();
 
 	return vVTFImport;
 }
@@ -383,8 +504,8 @@ VTFEImport *VTFEImport::fromVTF( QWidget *pParent, VTFLib::CVTFFile *pFile )
 GeneralTab::GeneralTab( VTFEImport *parent ) :
 	QDialog( parent )
 {
-	vMainLayout = new QGridLayout( this );
-	vMainLayout->setAlignment( Qt::AlignTop );
+	pMainLayout = new QGridLayout( this );
+	pMainLayout->setAlignment( Qt::AlignTop );
 	GeneralOptions();
 	GeneralResize();
 	GeneralMipMaps();
@@ -400,188 +521,190 @@ void GeneralTab::GeneralOptions()
 	auto label1 = new QLabel();
 	label1->setText( tr( "Texture Format:" ) );
 	vBLayout->addWidget( label1, 0, 0, Qt::AlignLeft );
-	formatCombo_ = new QComboBox( this );
+	pFormatCombo = new QComboBox( this );
 	for ( auto &fmt : IMAGE_FORMATS )
 	{
 		if ( VTFLib::CVTFFile::GetImageFormatInfo( fmt.format ).bIsSupported )
-			formatCombo_->addItem( tr( fmt.name ), (int)fmt.format );
+			pFormatCombo->addItem( tr( fmt.name ), (int)fmt.format );
 	}
-	vBLayout->addWidget( formatCombo_, 0, 1, Qt::AlignRight );
+	vBLayout->addWidget( pFormatCombo, 0, 1, Qt::AlignRight );
 	auto label2 = new QLabel();
 	label2->setText( tr( "Texture Type:" ) );
-	typeCombo_ = new QComboBox( this );
-	typeCombo_->addItem( tr( "Animated Texture" ) );
-	typeCombo_->addItem( tr( "Environment Map" ) );
-	typeCombo_->addItem( tr( "Volume Texture" ) );
+	pTypeCombo = new QComboBox( this );
+	pTypeCombo->addItem( tr( "Animated Texture" ) );
+	pTypeCombo->addItem( tr( "Environment Map" ) );
+	pTypeCombo->addItem( tr( "Volume Texture" ) );
 
 	auto vParent = static_cast<VTFEImport *>( this->parent() );
 	connect(
-		typeCombo_, &QComboBox::currentTextChanged, this->parent(),
+		pTypeCombo, &QComboBox::currentTextChanged, this->parent(),
 		[this, vParent]()
 		{
-			bool shouldCheck = typeCombo_->currentIndex() == 0;
+			bool shouldCheck = pTypeCombo->currentIndex() == 0;
 #ifdef NORMAL_GENERATION
 			generateNormalMapCheckbox_->setDisabled( !shouldCheck );
 			emit generateNormalMapCheckbox_->clicked( shouldCheck && generateNormalMapCheckbox_->isChecked() );
 #endif
 			if ( vParent )
 			{
-				vParent->pAdvancedTab->generateSphereMapCheckBox_->setDisabled( shouldCheck );
+				vParent->pAdvancedTab->pGenerateSphereMapCheckBox->setDisabled( shouldCheck );
 			}
 		} );
 
 	vBLayout->addWidget( label2, 1, 0, Qt::AlignLeft );
-	vBLayout->addWidget( typeCombo_, 1, 1, Qt::AlignRight );
-	vMainLayout->addWidget( vBoxGeneralOptions, 0, 0 );
+	vBLayout->addWidget( pTypeCombo, 1, 1, Qt::AlignRight );
+	pSRGBCheckbox = new QCheckBox( "sRGB Color Space", this );
+	vBLayout->addWidget( pSRGBCheckbox, 2, 0, 1, 2, Qt::AlignLeft );
+	pMainLayout->addWidget( vBoxGeneralOptions, 0, 0 );
 }
 
 void GeneralTab::GeneralResize()
 {
 	auto vBoxResize = new QGroupBox( tr( "Resize" ), this );
 	auto vBLayout = new QGridLayout( vBoxResize );
-	resizeCheckbox_ = new QCheckBox( this );
-	resizeCheckbox_->setText( tr( "Resize" ) );
+	pResizeCheckbox = new QCheckBox( this );
+	pResizeCheckbox->setText( tr( "Resize" ) );
 	auto parent = static_cast<VTFEImport *>( this->parent() );
-	vlBool b1 = parent->IsPowerOfTwo( parent->images_[0]->getWidth() );
-	vlBool b2 = parent->IsPowerOfTwo( parent->images_[0]->getHeight() );
-	resizeCheckbox_->setChecked( !( b1 && b2 ) );
-	resizeCheckbox_->setDisabled( !( b1 && b2 ) );
+	vlBool b1 = parent->IsPowerOfTwo( parent->imageList[0]->getWidth() );
+	vlBool b2 = parent->IsPowerOfTwo( parent->imageList[0]->getHeight() );
+	pResizeCheckbox->setChecked( !( b1 && b2 ) );
+	pResizeCheckbox->setDisabled( !( b1 && b2 ) );
 	if ( !( b1 && b2 ) )
-		resizeCheckbox_->setToolTip( tr( "Image is not in power of 2 and therefore needs resizing." ) );
-	vBLayout->addWidget( resizeCheckbox_, 0, 0, Qt::AlignLeft );
+		pResizeCheckbox->setToolTip( tr( "Image is not in power of 2 and therefore needs resizing." ) );
+	vBLayout->addWidget( pResizeCheckbox, 0, 0, Qt::AlignLeft );
 	auto label1 = new QLabel();
 	label1->setText( tr( "Resize Method:" ) );
 	vBLayout->addWidget( label1, 1, 0, Qt::AlignLeft );
-	resizeMethodCombo_ = new QComboBox( this );
-	resizeMethodCombo_->addItem( tr( "Nearest Power Of 2" ), (int)RESIZE_NEAREST_POWER2 );
-	resizeMethodCombo_->addItem( tr( "Biggest Power Of 2" ), (int)RESIZE_BIGGEST_POWER2 );
-	resizeMethodCombo_->addItem( tr( "Smallest Power Of 2" ), (int)RESIZE_SMALLEST_POWER2 );
-	resizeMethodCombo_->setCurrentIndex( 1 );
-	vBLayout->addWidget( resizeMethodCombo_, 1, 1, Qt::AlignRight );
+	pResizeMethodCombo = new QComboBox( this );
+	pResizeMethodCombo->addItem( tr( "Nearest Power Of 2" ), (int)RESIZE_NEAREST_POWER2 );
+	pResizeMethodCombo->addItem( tr( "Biggest Power Of 2" ), (int)RESIZE_BIGGEST_POWER2 );
+	pResizeMethodCombo->addItem( tr( "Smallest Power Of 2" ), (int)RESIZE_SMALLEST_POWER2 );
+	pResizeMethodCombo->setCurrentIndex( 1 );
+	vBLayout->addWidget( pResizeMethodCombo, 1, 1, Qt::AlignRight );
 	auto label2 = new QLabel();
 	label2->setText( tr( "Resize Filter:" ) );
 	vBLayout->addWidget( label2, 2, 0, Qt::AlignLeft );
-	resizeFilterCombo_ = new QComboBox( this );
-	resizeFilterCombo_->addItem( tr( "Box" ), (int)MIPMAP_FILTER_BOX );
-	resizeFilterCombo_->addItem( tr( "Triangle" ), (int)MIPMAP_FILTER_TRIANGLE );
-	resizeFilterCombo_->addItem( tr( "Quadratic" ), (int)MIPMAP_FILTER_QUADRATIC );
-	resizeFilterCombo_->addItem( tr( "Cubic" ), (int)MIPMAP_FILTER_CUBIC );
-	resizeFilterCombo_->addItem( tr( "Catrom" ), (int)MIPMAP_FILTER_CATROM );
-	resizeFilterCombo_->addItem( tr( "Mitchell" ), (int)MIPMAP_FILTER_MITCHELL );
-	resizeFilterCombo_->addItem( tr( "Gaussian" ), (int)MIPMAP_FILTER_GAUSSIAN );
-	resizeFilterCombo_->addItem( tr( "Sine Cardinal" ), (int)MIPMAP_FILTER_SINC );
-	resizeFilterCombo_->addItem( tr( "Bessel" ), (int)MIPMAP_FILTER_BESSEL );
-	resizeFilterCombo_->addItem( tr( "Hanning" ), (int)MIPMAP_FILTER_HANNING );
-	resizeFilterCombo_->addItem( tr( "Hamming" ), (int)MIPMAP_FILTER_HAMMING );
-	resizeFilterCombo_->addItem( tr( "Blackman" ), (int)MIPMAP_FILTER_BLACKMAN );
-	resizeFilterCombo_->addItem( tr( "Kaiser" ), (int)MIPMAP_FILTER_KAISER );
-	vBLayout->addWidget( resizeFilterCombo_, 2, 1, Qt::AlignRight );
-	clampCheckbox_ = new QCheckBox( this );
-	clampCheckbox_->setText( tr( "Clamp" ) );
+	pResizeFilterCombo = new QComboBox( this );
+	pResizeFilterCombo->addItem( tr( "Box" ), (int)MIPMAP_FILTER_BOX );
+	pResizeFilterCombo->addItem( tr( "Triangle" ), (int)MIPMAP_FILTER_TRIANGLE );
+	pResizeFilterCombo->addItem( tr( "Quadratic" ), (int)MIPMAP_FILTER_QUADRATIC );
+	pResizeFilterCombo->addItem( tr( "Cubic" ), (int)MIPMAP_FILTER_CUBIC );
+	pResizeFilterCombo->addItem( tr( "Catrom" ), (int)MIPMAP_FILTER_CATROM );
+	pResizeFilterCombo->addItem( tr( "Mitchell" ), (int)MIPMAP_FILTER_MITCHELL );
+	pResizeFilterCombo->addItem( tr( "Gaussian" ), (int)MIPMAP_FILTER_GAUSSIAN );
+	pResizeFilterCombo->addItem( tr( "Sine Cardinal" ), (int)MIPMAP_FILTER_SINC );
+	pResizeFilterCombo->addItem( tr( "Bessel" ), (int)MIPMAP_FILTER_BESSEL );
+	pResizeFilterCombo->addItem( tr( "Hanning" ), (int)MIPMAP_FILTER_HANNING );
+	pResizeFilterCombo->addItem( tr( "Hamming" ), (int)MIPMAP_FILTER_HAMMING );
+	pResizeFilterCombo->addItem( tr( "Blackman" ), (int)MIPMAP_FILTER_BLACKMAN );
+	pResizeFilterCombo->addItem( tr( "Kaiser" ), (int)MIPMAP_FILTER_KAISER );
+	vBLayout->addWidget( pResizeFilterCombo, 2, 1, Qt::AlignRight );
+	pClampCheckbox = new QCheckBox( this );
+	pClampCheckbox->setText( tr( "Clamp" ) );
 
-	vBLayout->addWidget( clampCheckbox_, 3, 0, Qt::AlignLeft );
+	vBLayout->addWidget( pClampCheckbox, 3, 0, Qt::AlignLeft );
 	auto label3 = new QLabel();
 	label3->setText( tr( "Maximum Width:" ) );
-	clampWidthCombo_ = new QComboBox( this );
+	pClampWidthCombo = new QComboBox( this );
 	vBLayout->addWidget( label3, 4, 0, Qt::AlignLeft );
-	vBLayout->addWidget( clampWidthCombo_, 4, 1, Qt::AlignRight );
+	vBLayout->addWidget( pClampWidthCombo, 4, 1, Qt::AlignRight );
 
 	auto label4 = new QLabel();
 	label4->setText( tr( "Maximum Height:" ) );
-	clampHeightCombo_ = new QComboBox( this );
+	pClampHeightCombo = new QComboBox( this );
 	for ( int i = 1; i <= 4096; i *= 2 )
 	{
-		clampHeightCombo_->addItem( QString::number( i ), i );
-		clampWidthCombo_->addItem( QString::number( i ), i );
+		pClampHeightCombo->addItem( QString::number( i ), i );
+		pClampWidthCombo->addItem( QString::number( i ), i );
 	}
 
-	clampHeightCombo_->setCurrentIndex( clampHeightCombo_->count() - 2 );
-	clampWidthCombo_->setCurrentIndex( clampWidthCombo_->count() - 2 );
+	pClampHeightCombo->setCurrentIndex( pClampHeightCombo->count() - 2 );
+	pClampWidthCombo->setCurrentIndex( pClampWidthCombo->count() - 2 );
 
 	label3->setDisabled( true );
 	label4->setDisabled( true );
-	clampHeightCombo_->setDisabled( true );
-	clampWidthCombo_->setDisabled( true );
+	pClampHeightCombo->setDisabled( true );
+	pClampWidthCombo->setDisabled( true );
 
 	connect(
-		clampCheckbox_, &QCheckBox::clicked, this->parent(),
+		pClampCheckbox, &QCheckBox::clicked, this->parent(),
 		[label3, label4, this]( bool checked )
 		{
 			label3->setDisabled( !checked );
 			label4->setDisabled( !checked );
-			clampHeightCombo_->setDisabled( !checked );
-			clampWidthCombo_->setDisabled( !checked );
+			pClampHeightCombo->setDisabled( !checked );
+			pClampWidthCombo->setDisabled( !checked );
 		} );
 
-	if ( !resizeCheckbox_->isChecked() )
+	if ( !pResizeCheckbox->isChecked() )
 	{
 		label1->setDisabled( true );
 		label2->setDisabled( true );
-		resizeMethodCombo_->setDisabled( true );
-		resizeFilterCombo_->setDisabled( true );
-		clampCheckbox_->setDisabled( true );
+		pResizeMethodCombo->setDisabled( true );
+		pResizeFilterCombo->setDisabled( true );
+		pClampCheckbox->setDisabled( true );
 	}
 	connect(
-		resizeCheckbox_, &QCheckBox::clicked, this->parent(),
+		pResizeCheckbox, &QCheckBox::clicked, this->parent(),
 		[label1, label2, label3, label4, this]( bool checked )
 		{
 			label1->setDisabled( !checked );
 			label2->setDisabled( !checked );
-			resizeMethodCombo_->setDisabled( !checked );
-			resizeFilterCombo_->setDisabled( !checked );
-			clampCheckbox_->setDisabled( !checked );
-			bool secondChecked = clampCheckbox_->isChecked();
+			pResizeMethodCombo->setDisabled( !checked );
+			pResizeFilterCombo->setDisabled( !checked );
+			pClampCheckbox->setDisabled( !checked );
+			bool secondChecked = pClampCheckbox->isChecked();
 			label3->setDisabled( !checked || !secondChecked );
 			label4->setDisabled( !checked || !secondChecked );
-			clampHeightCombo_->setDisabled( !checked || !secondChecked );
-			clampWidthCombo_->setDisabled( !checked || !secondChecked );
+			pClampHeightCombo->setDisabled( !checked || !secondChecked );
+			pClampWidthCombo->setDisabled( !checked || !secondChecked );
 		} );
 
 	vBLayout->addWidget( label4, 5, 0, Qt::AlignLeft );
-	vBLayout->addWidget( clampHeightCombo_, 5, 1, Qt::AlignRight );
-	vMainLayout->addWidget( vBoxResize, 1, 0 );
+	vBLayout->addWidget( pClampHeightCombo, 5, 1, Qt::AlignRight );
+	pMainLayout->addWidget( vBoxResize, 1, 0 );
 }
 
 void GeneralTab::GeneralMipMaps()
 {
 	auto vBoxMipMaps = new QGroupBox( tr( "Mipmaps" ), this );
 	auto vBLayout = new QGridLayout( vBoxMipMaps );
-	generateMipmapsCheckbox_ = new QCheckBox( this );
-	generateMipmapsCheckbox_->setText( tr( "Generate Mipmaps" ) );
-	vBLayout->addWidget( generateMipmapsCheckbox_, 0, 0, Qt::AlignLeft );
+	pGenerateMipmapsCheckbox = new QCheckBox( this );
+	pGenerateMipmapsCheckbox->setText( tr( "Generate Mipmaps" ) );
+	vBLayout->addWidget( pGenerateMipmapsCheckbox, 0, 0, Qt::AlignLeft );
 
 	auto label1 = new QLabel();
 	label1->setText( tr( "Mipmap Filter:" ) );
 	vBLayout->addWidget( label1, 1, 0, Qt::AlignLeft );
 
-	mipmapFilterCombo_ = new QComboBox( this );
-	mipmapFilterCombo_->addItem( tr( "Box" ), (int)MIPMAP_FILTER_BOX );
-	mipmapFilterCombo_->addItem( tr( "Triangle" ), (int)MIPMAP_FILTER_TRIANGLE );
-	mipmapFilterCombo_->addItem( tr( "Quadratic" ), (int)MIPMAP_FILTER_QUADRATIC );
-	mipmapFilterCombo_->addItem( tr( "Cubic" ), (int)MIPMAP_FILTER_CUBIC );
-	mipmapFilterCombo_->addItem( tr( "Catrom" ), (int)MIPMAP_FILTER_CATROM );
-	mipmapFilterCombo_->addItem( tr( "Mitchell" ), (int)MIPMAP_FILTER_MITCHELL );
-	mipmapFilterCombo_->addItem( tr( "Gaussian" ), (int)MIPMAP_FILTER_GAUSSIAN );
-	mipmapFilterCombo_->addItem( tr( "Sine Cardinal" ), (int)MIPMAP_FILTER_SINC );
-	mipmapFilterCombo_->addItem( tr( "Bessel" ), (int)MIPMAP_FILTER_BESSEL );
-	mipmapFilterCombo_->addItem( tr( "Hanning" ), (int)MIPMAP_FILTER_HANNING );
-	mipmapFilterCombo_->addItem( tr( "Hamming" ), (int)MIPMAP_FILTER_HAMMING );
-	mipmapFilterCombo_->addItem( tr( "Blackman" ), (int)MIPMAP_FILTER_BLACKMAN );
-	mipmapFilterCombo_->addItem( tr( "Kaiser" ), (int)MIPMAP_FILTER_KAISER );
-	vBLayout->addWidget( mipmapFilterCombo_, 1, 1, Qt::AlignRight );
+	pMipmapFilterCombo = new QComboBox( this );
+	pMipmapFilterCombo->addItem( tr( "Box" ), (int)MIPMAP_FILTER_BOX );
+	pMipmapFilterCombo->addItem( tr( "Triangle" ), (int)MIPMAP_FILTER_TRIANGLE );
+	pMipmapFilterCombo->addItem( tr( "Quadratic" ), (int)MIPMAP_FILTER_QUADRATIC );
+	pMipmapFilterCombo->addItem( tr( "Cubic" ), (int)MIPMAP_FILTER_CUBIC );
+	pMipmapFilterCombo->addItem( tr( "Catrom" ), (int)MIPMAP_FILTER_CATROM );
+	pMipmapFilterCombo->addItem( tr( "Mitchell" ), (int)MIPMAP_FILTER_MITCHELL );
+	pMipmapFilterCombo->addItem( tr( "Gaussian" ), (int)MIPMAP_FILTER_GAUSSIAN );
+	pMipmapFilterCombo->addItem( tr( "Sine Cardinal" ), (int)MIPMAP_FILTER_SINC );
+	pMipmapFilterCombo->addItem( tr( "Bessel" ), (int)MIPMAP_FILTER_BESSEL );
+	pMipmapFilterCombo->addItem( tr( "Hanning" ), (int)MIPMAP_FILTER_HANNING );
+	pMipmapFilterCombo->addItem( tr( "Hamming" ), (int)MIPMAP_FILTER_HAMMING );
+	pMipmapFilterCombo->addItem( tr( "Blackman" ), (int)MIPMAP_FILTER_BLACKMAN );
+	pMipmapFilterCombo->addItem( tr( "Kaiser" ), (int)MIPMAP_FILTER_KAISER );
+	vBLayout->addWidget( pMipmapFilterCombo, 1, 1, Qt::AlignRight );
 
 	label1->setDisabled( true );
-	mipmapFilterCombo_->setDisabled( true );
+	pMipmapFilterCombo->setDisabled( true );
 
 	connect(
-		generateMipmapsCheckbox_, &QCheckBox::clicked, this->parent(),
+		pGenerateMipmapsCheckbox, &QCheckBox::clicked, this->parent(),
 		[this, label1]( bool checked )
 		{
 			label1->setDisabled( !checked );
-			mipmapFilterCombo_->setDisabled( !checked );
+			pMipmapFilterCombo->setDisabled( !checked );
 		} );
 
-	vMainLayout->addWidget( vBoxMipMaps, 0, 1 );
+	pMainLayout->addWidget( vBoxMipMaps, 0, 1 );
 }
 #ifdef NORMAL_GENERATION
 void GeneralTab::GeneralNormalMap()
@@ -670,8 +793,8 @@ void GeneralTab::GeneralNormalMap()
 AdvancedTab::AdvancedTab( VTFEImport *parent ) :
 	QDialog( parent )
 {
-	vMainLayout = new QGridLayout( this );
-	vMainLayout->setAlignment( Qt::AlignTop );
+	pMainLayout = new QGridLayout( this );
+	pMainLayout->setAlignment( Qt::AlignTop );
 	VersionMenu();
 	GammaCorrectionMenu();
 	Miscellaneous();
@@ -692,56 +815,56 @@ void AdvancedTab::VersionMenu()
 	auto label1 = new QLabel( this );
 	label1->setText( tr( "VTF Version:" ) );
 	vBLayout->addWidget( label1, 0, 0, Qt::AlignLeft );
-	vtfVersionBox_ = new QComboBox( this );
+	pVtfVersionBox = new QComboBox( this );
 #ifdef CHAOS_INITIATIVE
 	for ( int i = 0; i <= VTF_MINOR_VERSION; i++ )
 #else
 	for ( int i = 0; i <= 5; i++ )
 #endif
 	{
-		vtfVersionBox_->addItem( QString::number( VTF_MAJOR_VERSION ) + "." + QString::number( i ), i );
+		pVtfVersionBox->addItem( QString::number( VTF_MAJOR_VERSION ) + "." + QString::number( i ), i );
 	}
-	vtfVersionBox_->setCurrentIndex( vtfVersionBox_->count() - 2 );
-	vBLayout->addWidget( vtfVersionBox_, 0, 1, Qt::AlignRight );
+	pVtfVersionBox->setCurrentIndex( pVtfVersionBox->count() - 2 );
+	vBLayout->addWidget( pVtfVersionBox, 0, 1, Qt::AlignRight );
 #ifdef CHAOS_INITIATIVE
-	auxCompressionBox_ = new QCheckBox( this );
-	auxCompressionBox_->setText( tr( "AUX Compression" ) );
-	vBLayout->addWidget( auxCompressionBox_, 1, 0, Qt::AlignLeft );
+	pAuxCompressionBox = new QCheckBox( this );
+	pAuxCompressionBox->setText( tr( "AUX Compression" ) );
+	vBLayout->addWidget( pAuxCompressionBox, 1, 0, Qt::AlignLeft );
 
 	auto label2 = new QLabel( this );
 	label2->setText( tr( "Aux Compression Level:" ) );
 	vBLayout->addWidget( label2, 2, 0, Qt::AlignLeft );
-	auxCompressionLevelBox_ = new QComboBox( this );
+	pAuxCompressionLevelBox = new QComboBox( this );
 	for ( int i = 0; i <= 9; i++ )
 	{
-		auxCompressionLevelBox_->addItem( QString::number( i ), i );
+		pAuxCompressionLevelBox->addItem( QString::number( i ), i );
 	}
-	auxCompressionLevelBox_->setCurrentIndex( auxCompressionLevelBox_->count() - 1 );
-	vBLayout->addWidget( auxCompressionLevelBox_, 2, 1, Qt::AlignRight );
+	pAuxCompressionLevelBox->setCurrentIndex( pAuxCompressionLevelBox->count() - 1 );
+	vBLayout->addWidget( pAuxCompressionLevelBox, 2, 1, Qt::AlignRight );
 
-	auxCompressionBox_->setDisabled( true );
-	auxCompressionLevelBox_->setDisabled( true );
+	pAuxCompressionBox->setDisabled( true );
+	pAuxCompressionLevelBox->setDisabled( true );
 	label2->setDisabled( true );
 
 	connect(
-		vtfVersionBox_, &QComboBox::currentTextChanged, this->parent(),
+		pVtfVersionBox, &QComboBox::currentTextChanged, this->parent(),
 		[this, label2]( QString text )
 		{
 			bool iscompressCompatible = ( QString( text.at( 2 ).toLatin1() ).toInt() >= 6 );
-			auxCompressionBox_->setDisabled( !iscompressCompatible );
-			bool isChecked = auxCompressionBox_->isChecked();
-			auxCompressionLevelBox_->setDisabled( !iscompressCompatible || !isChecked );
+			pAuxCompressionBox->setDisabled( !iscompressCompatible );
+			bool isChecked = pAuxCompressionBox->isChecked();
+			pAuxCompressionLevelBox->setDisabled( !iscompressCompatible || !isChecked );
 			label2->setDisabled( !iscompressCompatible || !isChecked );
 		} );
 	connect(
-		auxCompressionBox_, &QCheckBox::clicked, this->parent(),
+		pAuxCompressionBox, &QCheckBox::clicked, this->parent(),
 		[this, label2]( bool checked )
 		{
-			auxCompressionLevelBox_->setDisabled( !checked );
+			pAuxCompressionLevelBox->setDisabled( !checked );
 			label2->setDisabled( !checked );
 		} );
 #endif
-	vMainLayout->addWidget( vBoxVersion, 0, 0 );
+	pMainLayout->addWidget( vBoxVersion, 0, 0 );
 }
 
 void AdvancedTab::GammaCorrectionMenu()
@@ -749,47 +872,47 @@ void AdvancedTab::GammaCorrectionMenu()
 	auto vBoxGammaCorrection = new QGroupBox( tr( "Gamma Correction" ), this );
 	auto vBLayout = new QGridLayout( vBoxGammaCorrection );
 
-	gammaCorrectionCheckBox_ = new QCheckBox( this );
-	gammaCorrectionCheckBox_->setText( tr( "Gamma Correction" ) );
-	vBLayout->addWidget( gammaCorrectionCheckBox_, 0, 0, Qt::AlignLeft );
+	pGammaCorrectionCheckBox = new QCheckBox( this );
+	pGammaCorrectionCheckBox->setText( tr( "Gamma Correction" ) );
+	vBLayout->addWidget( pGammaCorrectionCheckBox, 0, 0, Qt::AlignLeft );
 
 	auto label1 = new QLabel( this );
 	label1->setText( tr( "Correction:" ) );
 	vBLayout->addWidget( label1, 1, 0, Qt::AlignLeft );
-	gammaCorrectionBox_ = new QDoubleSpinBox( this );
+	pGammaCorrectionBox = new QDoubleSpinBox( this );
 
-	gammaCorrectionBox_->setValue( 2.30 );
-	vBLayout->addWidget( gammaCorrectionBox_, 1, 1, Qt::AlignRight );
+	pGammaCorrectionBox->setValue( 2.30 );
+	vBLayout->addWidget( pGammaCorrectionBox, 1, 1, Qt::AlignRight );
 
-	gammaCorrectionBox_->setDisabled( true );
+	pGammaCorrectionBox->setDisabled( true );
 	label1->setDisabled( true );
 
 	connect(
-		gammaCorrectionCheckBox_, &QCheckBox::clicked, this->parent(),
+		pGammaCorrectionCheckBox, &QCheckBox::clicked, this->parent(),
 		[label1, this]( bool clicked )
 		{
-			gammaCorrectionBox_->setDisabled( !clicked );
+			pGammaCorrectionBox->setDisabled( !clicked );
 			label1->setDisabled( !clicked );
 		} );
 
-	vMainLayout->addWidget( vBoxGammaCorrection, 1, 0 );
+	pMainLayout->addWidget( vBoxGammaCorrection, 1, 0 );
 }
 
 void AdvancedTab::Miscellaneous()
 {
 	auto vBoxMiscellaneous = new QGroupBox( tr( "Miscellaneous" ), this );
 	auto vBLayout = new QGridLayout( vBoxMiscellaneous );
-	computeReflectivityCheckBox_ = new QCheckBox( this );
-	computeReflectivityCheckBox_->setText( tr( "Compute Reflectivity" ) );
-	vBLayout->addWidget( computeReflectivityCheckBox_, 0, 0, Qt::AlignLeft );
-	generateThumbnailCheckBox_ = new QCheckBox( this );
-	generateThumbnailCheckBox_->setText( tr( "Generate Thumbnail" ) );
-	vBLayout->addWidget( generateThumbnailCheckBox_, 1, 0, Qt::AlignLeft );
-	generateSphereMapCheckBox_ = new QCheckBox( this );
-	generateSphereMapCheckBox_->setText( tr( "Generate Sphere Map" ) );
-	generateSphereMapCheckBox_->setDisabled( true );
-	vBLayout->addWidget( generateSphereMapCheckBox_, 2, 0, Qt::AlignLeft );
-	vMainLayout->addWidget( vBoxMiscellaneous, 2, 0 );
+	pComputeReflectivityCheckBox = new QCheckBox( this );
+	pComputeReflectivityCheckBox->setText( tr( "Compute Reflectivity" ) );
+	vBLayout->addWidget( pComputeReflectivityCheckBox, 0, 0, Qt::AlignLeft );
+	pGenerateThumbnailCheckBox = new QCheckBox( this );
+	pGenerateThumbnailCheckBox->setText( tr( "Generate Thumbnail" ) );
+	vBLayout->addWidget( pGenerateThumbnailCheckBox, 1, 0, Qt::AlignLeft );
+	pGenerateSphereMapCheckBox = new QCheckBox( this );
+	pGenerateSphereMapCheckBox->setText( tr( "Generate Sphere Map" ) );
+	pGenerateSphereMapCheckBox->setDisabled( true );
+	vBLayout->addWidget( pGenerateSphereMapCheckBox, 2, 0, Qt::AlignLeft );
+	pMainLayout->addWidget( vBoxMiscellaneous, 2, 0 );
 }
 
 void AdvancedTab::DTXCompression()
@@ -800,14 +923,14 @@ void AdvancedTab::DTXCompression()
 	auto label1 = new QLabel( this );
 	label1->setText( tr( "Quality:" ) );
 	vBLayout->addWidget( label1, 0, 0, Qt::AlignLeft );
-	dtxCompressionQuality_ = new QComboBox( this );
-	dtxCompressionQuality_->addItem( tr( "low" ) );
-	dtxCompressionQuality_->addItem( tr( "medium" ) );
-	dtxCompressionQuality_->addItem( tr( "high" ) );
-	dtxCompressionQuality_->setCurrentIndex( dtxCompressionQuality_->count() - 1 );
-	vBLayout->addWidget( dtxCompressionQuality_, 0, 1, Qt::AlignRight );
+	pDtxCompressionQuality = new QComboBox( this );
+	pDtxCompressionQuality->addItem( tr( "low" ) );
+	pDtxCompressionQuality->addItem( tr( "medium" ) );
+	pDtxCompressionQuality->addItem( tr( "high" ) );
+	pDtxCompressionQuality->setCurrentIndex( pDtxCompressionQuality->count() - 1 );
+	vBLayout->addWidget( pDtxCompressionQuality, 0, 1, Qt::AlignRight );
 
-	vMainLayout->addWidget( vBoxDTXCompression, 3, 0 );
+	pMainLayout->addWidget( vBoxDTXCompression, 3, 0 );
 }
 
 void AdvancedTab::LuminanceWeights()
@@ -818,28 +941,28 @@ void AdvancedTab::LuminanceWeights()
 	auto label1 = new QLabel( this );
 	label1->setText( tr( "Red:" ) );
 	vBLayout->addWidget( label1, 0, 0, Qt::AlignLeft );
-	luminanceWeightRedBox_ = new QDoubleSpinBox( this );
-	luminanceWeightRedBox_->setDecimals( 3 );
-	luminanceWeightRedBox_->setValue( 0.299 );
-	vBLayout->addWidget( luminanceWeightRedBox_, 0, 1, Qt::AlignRight );
+	pLuminanceWeightRedBox = new QDoubleSpinBox( this );
+	pLuminanceWeightRedBox->setDecimals( 3 );
+	pLuminanceWeightRedBox->setValue( 0.299 );
+	vBLayout->addWidget( pLuminanceWeightRedBox, 0, 1, Qt::AlignRight );
 
 	auto label2 = new QLabel( this );
 	label2->setText( tr( "Green:" ) );
 	vBLayout->addWidget( label2, 1, 0, Qt::AlignLeft );
-	luminanceWeightGreenBox_ = new QDoubleSpinBox( this );
-	luminanceWeightGreenBox_->setDecimals( 3 );
-	luminanceWeightGreenBox_->setValue( 0.587 );
-	vBLayout->addWidget( luminanceWeightGreenBox_, 1, 1, Qt::AlignRight );
+	pLuminanceWeightGreenBox = new QDoubleSpinBox( this );
+	pLuminanceWeightGreenBox->setDecimals( 3 );
+	pLuminanceWeightGreenBox->setValue( 0.587 );
+	vBLayout->addWidget( pLuminanceWeightGreenBox, 1, 1, Qt::AlignRight );
 
 	auto label3 = new QLabel( this );
 	label3->setText( tr( "Blue:" ) );
 	vBLayout->addWidget( label3, 2, 0, Qt::AlignLeft );
-	luminanceWeightBlueBox_ = new QDoubleSpinBox( this );
-	luminanceWeightBlueBox_->setDecimals( 3 );
-	luminanceWeightBlueBox_->setValue( 0.114 );
-	vBLayout->addWidget( luminanceWeightBlueBox_, 2, 1, Qt::AlignRight );
+	pLuminanceWeightBlueBox = new QDoubleSpinBox( this );
+	pLuminanceWeightBlueBox->setDecimals( 3 );
+	pLuminanceWeightBlueBox->setValue( 0.114 );
+	vBLayout->addWidget( pLuminanceWeightBlueBox, 2, 1, Qt::AlignRight );
 
-	vMainLayout->addWidget( vBoxDTXCompression, 0, 1 );
+	pMainLayout->addWidget( vBoxDTXCompression, 0, 1 );
 }
 #ifdef COLOR_CORRECTION
 void AdvancedTab::ColorCorrectionMenu()
@@ -990,25 +1113,25 @@ void AdvancedTab::UnsharpenMaskOptions()
 	auto label1 = new QLabel( this );
 	label1->setText( tr( "Radius:" ) );
 	vBLayout->addWidget( label1, 0, 0, Qt::AlignLeft );
-	unsharpenMaskRadiusBox_ = new QDoubleSpinBox( this );
-	unsharpenMaskRadiusBox_->setValue( 2 );
-	vBLayout->addWidget( unsharpenMaskRadiusBox_, 0, 1, Qt::AlignRight );
+	pUnsharpenMaskRadiusBox = new QDoubleSpinBox( this );
+	pUnsharpenMaskRadiusBox->setValue( 2 );
+	vBLayout->addWidget( pUnsharpenMaskRadiusBox, 0, 1, Qt::AlignRight );
 
 	auto label2 = new QLabel( this );
 	label2->setText( tr( "Amount:" ) );
 	vBLayout->addWidget( label2, 1, 0, Qt::AlignLeft );
-	unsharpenMaskAmountBox_ = new QDoubleSpinBox( this );
-	unsharpenMaskAmountBox_->setValue( 0.5 );
-	vBLayout->addWidget( unsharpenMaskAmountBox_, 1, 1, Qt::AlignRight );
+	pUnsharpenMaskAmountBox = new QDoubleSpinBox( this );
+	pUnsharpenMaskAmountBox->setValue( 0.5 );
+	vBLayout->addWidget( pUnsharpenMaskAmountBox, 1, 1, Qt::AlignRight );
 
 	auto label3 = new QLabel( this );
 	label3->setText( tr( "Threshold:" ) );
 	vBLayout->addWidget( label3, 2, 0, Qt::AlignLeft );
-	unsharpenMaskThresholdBox_ = new QDoubleSpinBox( this );
-	unsharpenMaskThresholdBox_->setValue( 0 );
-	vBLayout->addWidget( unsharpenMaskThresholdBox_, 2, 1, Qt::AlignRight );
+	pUnsharpenMaskThresholdBox = new QDoubleSpinBox( this );
+	pUnsharpenMaskThresholdBox->setValue( 0 );
+	vBLayout->addWidget( pUnsharpenMaskThresholdBox, 2, 1, Qt::AlignRight );
 
-	vMainLayout->addWidget( vBoxDTXCompression, 1, 1 );
+	pMainLayout->addWidget( vBoxDTXCompression, 1, 1 );
 }
 
 void AdvancedTab::XSharpenOptions()
@@ -1019,25 +1142,25 @@ void AdvancedTab::XSharpenOptions()
 	auto label1 = new QLabel( this );
 	label1->setText( tr( "Strength:" ) );
 	vBLayout->addWidget( label1, 0, 0, Qt::AlignLeft );
-	xSharpenOptionsStrengthBox_ = new QDoubleSpinBox( this );
-	xSharpenOptionsStrengthBox_->setValue( 2 );
-	vBLayout->addWidget( xSharpenOptionsStrengthBox_, 0, 1, Qt::AlignRight );
+	pXSharpenOptionsStrengthBox = new QDoubleSpinBox( this );
+	pXSharpenOptionsStrengthBox->setValue( 2 );
+	vBLayout->addWidget( pXSharpenOptionsStrengthBox, 0, 1, Qt::AlignRight );
 
 	auto label2 = new QLabel( this );
 	label2->setText( tr( "Threshold:" ) );
 	vBLayout->addWidget( label2, 1, 0, Qt::AlignLeft );
-	xSharpenOptionsThresholdBox_ = new QDoubleSpinBox( this );
-	xSharpenOptionsThresholdBox_->setValue( 0.5 );
-	vBLayout->addWidget( xSharpenOptionsThresholdBox_, 1, 1, Qt::AlignRight );
+	pXSharpenOptionsThresholdBox = new QDoubleSpinBox( this );
+	pXSharpenOptionsThresholdBox->setValue( 0.5 );
+	vBLayout->addWidget( pXSharpenOptionsThresholdBox, 1, 1, Qt::AlignRight );
 
-	vMainLayout->addWidget( vBoxDTXCompression, 2, 1 );
+	pMainLayout->addWidget( vBoxDTXCompression, 2, 1 );
 }
 
 ResourceTab::ResourceTab( VTFEImport *parent ) :
 	QDialog( parent )
 {
-	vMainLayout = new QGridLayout( this );
-	vMainLayout->setAlignment( Qt::AlignTop );
+	pMainLayout = new QGridLayout( this );
+	pMainLayout->setAlignment( Qt::AlignTop );
 	LODControlResource();
 	InformationResource();
 }
@@ -1047,85 +1170,85 @@ void ResourceTab::LODControlResource()
 	auto vBoxLODControlResource = new QGroupBox( tr( "LOD Control Resource" ), this );
 	auto vBLayout = new QGridLayout( vBoxLODControlResource );
 
-	lodControlResourceCheckBox_ = new QCheckBox( this );
-	lodControlResourceCheckBox_->setText( tr( "Create LOD Control Resource" ) );
-	vBLayout->addWidget( lodControlResourceCheckBox_, 0, 0, Qt::AlignLeft );
+	pLodControlResourceCheckBox = new QCheckBox( this );
+	pLodControlResourceCheckBox->setText( tr( "Create LOD Control Resource" ) );
+	vBLayout->addWidget( pLodControlResourceCheckBox, 0, 0, Qt::AlignLeft );
 
 	auto label1 = new QLabel( this );
 	label1->setText( tr( "Strength:" ) );
 	vBLayout->addWidget( label1, 1, 0, Qt::AlignLeft );
-	controlResourceCrampUBox_ = new QDoubleSpinBox( this );
-	controlResourceCrampUBox_->setValue( 2 );
-	vBLayout->addWidget( controlResourceCrampUBox_, 1, 1, Qt::AlignRight );
+	pControlResourceCrampUBox = new QDoubleSpinBox( this );
+	pControlResourceCrampUBox->setValue( 2 );
+	vBLayout->addWidget( pControlResourceCrampUBox, 1, 1, Qt::AlignRight );
 
 	auto label2 = new QLabel( this );
 	label2->setText( tr( "Threshold:" ) );
 	vBLayout->addWidget( label2, 2, 0, Qt::AlignLeft );
-	controlResourceCrampVBox_ = new QDoubleSpinBox( this );
-	controlResourceCrampVBox_->setValue( 0.5 );
-	vBLayout->addWidget( controlResourceCrampVBox_, 2, 1, Qt::AlignRight );
+	pControlResourceCrampVBox = new QDoubleSpinBox( this );
+	pControlResourceCrampVBox->setValue( 0.5 );
+	vBLayout->addWidget( pControlResourceCrampVBox, 2, 1, Qt::AlignRight );
 
 	label1->setDisabled( true );
 	label2->setDisabled( true );
-	controlResourceCrampUBox_->setDisabled( true );
-	controlResourceCrampVBox_->setDisabled( true );
+	pControlResourceCrampUBox->setDisabled( true );
+	pControlResourceCrampVBox->setDisabled( true );
 
 	connect(
-		lodControlResourceCheckBox_, &QCheckBox::clicked,
+		pLodControlResourceCheckBox, &QCheckBox::clicked,
 		[label1, label2, this]( bool checked )
 		{
 			label1->setDisabled( !checked );
 			label2->setDisabled( !checked );
-			controlResourceCrampUBox_->setDisabled( !checked );
-			controlResourceCrampVBox_->setDisabled( !checked );
+			pControlResourceCrampUBox->setDisabled( !checked );
+			pControlResourceCrampVBox->setDisabled( !checked );
 		} );
 
-	vMainLayout->addWidget( vBoxLODControlResource, 0, 0, Qt::AlignLeft );
+	pMainLayout->addWidget( vBoxLODControlResource, 0, 0, Qt::AlignLeft );
 }
 
 void ResourceTab::InformationResource()
 {
 	auto vBoxInformationResource = new QGroupBox( tr( "Information Resource" ), this );
 	auto vBLayout = new QGridLayout( vBoxInformationResource );
-	createInformationResourceCheckBox_ = new QCheckBox( this );
-	createInformationResourceCheckBox_->setText( tr( "Create LOD Control Resource" ) );
-	vBLayout->addWidget( createInformationResourceCheckBox_, 0, 0, Qt::AlignLeft );
+	pCreateInformationResourceCheckBox = new QCheckBox( this );
+	pCreateInformationResourceCheckBox->setText( tr( "Create LOD Control Resource" ) );
+	vBLayout->addWidget( pCreateInformationResourceCheckBox, 0, 0, Qt::AlignLeft );
 
 	QLabel *label1 = new QLabel( this );
 	label1->setText( tr( "Author:" ) );
 	vBLayout->addWidget( label1, 1, 0, Qt::AlignLeft );
-	informationResouceAuthor_ = new QLineEdit( this );
-	vBLayout->addWidget( informationResouceAuthor_, 1, 1, Qt::AlignLeft );
+	pInformationResourceAuthor = new QLineEdit( this );
+	vBLayout->addWidget( pInformationResourceAuthor, 1, 1, Qt::AlignLeft );
 
 	QLabel *label2 = new QLabel( this );
 	label2->setText( tr( "Contact:" ) );
 	vBLayout->addWidget( label2, 2, 0, Qt::AlignLeft );
-	informationResouceContact_ = new QLineEdit( this );
-	vBLayout->addWidget( informationResouceContact_, 2, 1, Qt::AlignLeft );
+	pInformationResouceContact = new QLineEdit( this );
+	vBLayout->addWidget( pInformationResouceContact, 2, 1, Qt::AlignLeft );
 
 	QLabel *label3 = new QLabel( this );
 	label3->setText( tr( "Version:" ) );
 	vBLayout->addWidget( label3, 3, 0, Qt::AlignLeft );
-	informationResouceVersion_ = new QLineEdit( this );
-	vBLayout->addWidget( informationResouceVersion_, 3, 1, Qt::AlignLeft );
+	pInformationResouceVersion = new QLineEdit( this );
+	vBLayout->addWidget( pInformationResouceVersion, 3, 1, Qt::AlignLeft );
 
 	QLabel *label4 = new QLabel( this );
 	label4->setText( tr( "Modification:" ) );
 	vBLayout->addWidget( label4, 4, 0, Qt::AlignLeft );
-	informationResouceModification_ = new QLineEdit( this );
-	vBLayout->addWidget( informationResouceModification_, 4, 1, Qt::AlignLeft );
+	pInformationResouceModification = new QLineEdit( this );
+	vBLayout->addWidget( pInformationResouceModification, 4, 1, Qt::AlignLeft );
 
 	QLabel *label5 = new QLabel( this );
 	label5->setText( tr( "Description:" ) );
 	vBLayout->addWidget( label5, 5, 0, Qt::AlignLeft );
-	informationResouceDescription_ = new QLineEdit( this );
-	vBLayout->addWidget( informationResouceDescription_, 5, 1, Qt::AlignLeft );
+	pInformationResouceDescription = new QLineEdit( this );
+	vBLayout->addWidget( pInformationResouceDescription, 5, 1, Qt::AlignLeft );
 
 	QLabel *label6 = new QLabel( this );
 	label6->setText( tr( "Comments:" ) );
 	vBLayout->addWidget( label6, 6, 0, Qt::AlignLeft );
-	informationResouceComments_ = new QLineEdit( this );
-	vBLayout->addWidget( informationResouceComments_, 6, 1, Qt::AlignLeft );
+	pInformationResouceComments = new QLineEdit( this );
+	vBLayout->addWidget( pInformationResouceComments, 6, 1, Qt::AlignLeft );
 
 	label1->setDisabled( true );
 	label2->setDisabled( true );
@@ -1133,15 +1256,15 @@ void ResourceTab::InformationResource()
 	label4->setDisabled( true );
 	label5->setDisabled( true );
 	label6->setDisabled( true );
-	informationResouceAuthor_->setDisabled( true );
-	informationResouceVersion_->setDisabled( true );
-	informationResouceContact_->setDisabled( true );
-	informationResouceModification_->setDisabled( true );
-	informationResouceDescription_->setDisabled( true );
-	informationResouceComments_->setDisabled( true );
+	pInformationResourceAuthor->setDisabled( true );
+	pInformationResouceVersion->setDisabled( true );
+	pInformationResouceContact->setDisabled( true );
+	pInformationResouceModification->setDisabled( true );
+	pInformationResouceDescription->setDisabled( true );
+	pInformationResouceComments->setDisabled( true );
 
 	connect(
-		createInformationResourceCheckBox_, &QCheckBox::clicked,
+		pCreateInformationResourceCheckBox, &QCheckBox::clicked,
 		[label1, label2, label3, label4, label5, label6, this]( bool checked )
 		{
 			label1->setDisabled( !checked );
@@ -1150,13 +1273,13 @@ void ResourceTab::InformationResource()
 			label4->setDisabled( !checked );
 			label5->setDisabled( !checked );
 			label6->setDisabled( !checked );
-			informationResouceAuthor_->setDisabled( !checked );
-			informationResouceVersion_->setDisabled( !checked );
-			informationResouceContact_->setDisabled( !checked );
-			informationResouceModification_->setDisabled( !checked );
-			informationResouceDescription_->setDisabled( !checked );
-			informationResouceComments_->setDisabled( !checked );
+			pInformationResourceAuthor->setDisabled( !checked );
+			pInformationResouceVersion->setDisabled( !checked );
+			pInformationResouceContact->setDisabled( !checked );
+			pInformationResouceModification->setDisabled( !checked );
+			pInformationResouceDescription->setDisabled( !checked );
+			pInformationResouceComments->setDisabled( !checked );
 		} );
 
-	vMainLayout->addWidget( vBoxInformationResource, 1, 0, Qt::AlignLeft );
+	pMainLayout->addWidget( vBoxInformationResource, 1, 0, Qt::AlignLeft );
 }

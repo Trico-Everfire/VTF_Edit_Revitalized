@@ -3,11 +3,6 @@
 #include "../libs/VTFLib/VTFLib/stdafx.h"
 class VTFEImageFormat
 {
-	~VTFEImageFormat()
-	{
-		delete[] m_vImageData;
-	}
-
 	vlByte *m_vImageData;
 	vlUInt m_vWidth;
 	vlUInt m_vHeight;
@@ -16,6 +11,11 @@ class VTFEImageFormat
 	VTFImageFormat m_vformat;
 
 public:
+	~VTFEImageFormat()
+	{
+		delete[] m_vImageData;
+	}
+
 	VTFEImageFormat( vlByte *b, vlUInt width, vlUInt height, vlUInt depth, VTFImageFormat format )
 	{
 		m_vSize = VTFLib::CVTFFile::ComputeImageSize( width, height, 1, format );

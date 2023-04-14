@@ -62,6 +62,16 @@ public:
 		repaint();
 	}
 
+	void set_rgba( bool r, bool g, bool b, bool a )
+	{
+		red_ = r;
+		green_ = g;
+		blue_ = b;
+		alpha_ = a;
+		requestColorChange = true;
+		repaint();
+	}
+
 	void set_frame( int f )
 	{
 		frame_ = f;

@@ -4,8 +4,8 @@
 
 #include "VTFEdit.h"
 
+#include "../src/VTFEImport.h"
 #include "VTFEAbout.h"
-#include "VTFEImport.h"
 
 #include <QApplication>
 #include <QDebug>
@@ -196,6 +196,7 @@ CVTFEdit::CVTFEdit( QWidget *pParent ) :
 				this, fImageAmount > 1 ? "Export to *" : "Export to _x*",
 				"./" + ( text.mid( 0, text.lastIndexOf( "." ) ) ) + ".tga", "*.bmp *.gif *.jpg *.jpeg *.png *.tga", nullptr,
 				QFileDialog::Option::DontUseNativeDialog );
+			qInfo() << filePath;
 			if ( filePath.isEmpty() )
 				return;
 
@@ -213,9 +214,13 @@ CVTFEdit::CVTFEdit( QWidget *pParent ) :
 					pFile->GetFormat() );
 				auto img = QImage( pDest, pFile->GetWidth(), pFile->GetHeight(), QImage::Format_RGBA8888 );
 				if ( fImageAmount > 1 )
-					img.save(
+				{
+					QString nummedPath =
 						filePath.mid( 0, filePath.count() - 4 ) + "_" + QString::number( i ) +
-						filePath.mid( filePath.count() - 4, filePath.count() ) );
+						filePath.mid( filePath.count() - 4, filePath.count() );
+					qInfo() << nummedPath;
+					qInfo() << img.save( nummedPath );
+				}
 				else
 					img.save( filePath );
 
@@ -488,6 +493,7 @@ VMTQAction *CVTFEdit::addVMTTabEntry( VTFLib::CVMTFile *vVMT, QString fileName, 
 void CVTFEdit::SetFileSystemEnabled( bool enabled )
 {
 }
+
 void CVTFEdit::generateVTFFromImage( QString filePath )
 {
 	if ( filePath.isEmpty() )

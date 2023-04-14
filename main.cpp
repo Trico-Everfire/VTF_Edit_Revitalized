@@ -1,5 +1,6 @@
 #include "dialogs/VTFEdit.h"
 #include "libs/VPKTools/include/vpktool/VPK.h"
+#include "src/MainWindow.h"
 
 #include <QApplication>
 #include <QCommonStyle>
@@ -38,9 +39,11 @@ int main( int argc, char **argv )
 
 	QApplication::setPalette( palette );
 
-	auto pVTFEdit = new ui::CVTFEdit( nullptr );
+	auto pVTFEdit = new ui::CMainWindow( nullptr );
+	pVTFEdit->processCLIArguments( argc, argv );
 	pVTFEdit->setAttribute( Qt::WA_DeleteOnClose );
 	pVTFEdit->show();
+
 	QApplication::setWindowIcon( QIcon( "vtf_edit_revitalised2.png" ).pixmap( 1080, 1080 ) );
 	return QApplication::exec();
 }

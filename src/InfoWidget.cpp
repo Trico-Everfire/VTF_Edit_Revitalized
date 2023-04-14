@@ -1,8 +1,8 @@
 #include "InfoWidget.h"
 
-#include "../common/flagsandformats.hpp"
-#include "../common/util.hpp"
+#include "flagsandformats.hpp"
 #include "fmt/format.h"
+#include "util.hpp"
 
 #include <QDebug>
 #include <QGroupBox>

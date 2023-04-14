@@ -1,6 +1,6 @@
 #include "ImageSettingsWidget.h"
 
-#include "../common/flagsandformats.hpp"
+#include "flagsandformats.hpp"
 
 #include <QGridLayout>
 #include <QGroupBox>
@@ -126,7 +126,7 @@ void ImageSettingsWidget::set_vtf( VTFLib::CVTFFile *file )
 
 	// Configure ranges
 	mip_->setRange( 0, file->GetMipmapCount() );
-	frame_->setRange( 1, file->GetFrameCount() );
+	frame_->setRange( 0, file->GetFrameCount() - 1 );
 	face_->setRange( 1, file->GetFaceCount() );
 	startFrame_->setRange( 1, file->GetFrameCount() );
 

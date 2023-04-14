@@ -1,9 +1,9 @@
 #pragma once
 #include "../libs/VTFLib/VTFLib/VTFLib.h"
-#include "../widgets/ImageSettingsWidget.h"
-#include "../widgets/ImageViewWidget.h"
-#include "../widgets/InfoWidget.h"
-#include "../widgets/ResourceWidget.h"
+#include "../src/ImageSettingsWidget.h"
+#include "../src/ImageViewWidget.h"
+#include "../src/InfoWidget.h"
+#include "../src/ResourceWidget.h"
 #include "../widgets/VMTQSyntaxHighlighter.h"
 #include "../widgets/VTFQMenuBar.h"
 

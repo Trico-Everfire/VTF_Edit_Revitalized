@@ -1,5 +1,5 @@
 #pragma once
-#include <VTFLib.h>
+#include "VTFLib.h"
 
 typedef unsigned int __uint32_t;
 typedef __uint32_t uint32_t;
@@ -42,6 +42,12 @@ constexpr struct TextureFlag
 	{ TEXTUREFLAGS_BORDER, "Border" },
 	{ TEXTUREFLAGS_DEPRECATED_SPECVAR_RED, "Specvar Red (Deprecated)" },
 	{ TEXTUREFLAGS_DEPRECATED_SPECVAR_ALPHA, "Specvar Alpha (Deprecated)" },
+	{ TEXTUREFLAGS_UNUSED0, "Unused 0" },
+	{ TEXTUREFLAGS_UNUSED1, "Unused 1" },
+	{ TEXTUREFLAGS_UNUSED2, "Unused 2" },
+	{ TEXTUREFLAGS_UNUSED3, "Unused 3" },
+	{ TEXTUREFLAGS_UNUSED4, "Unused 4" },
+	{ TEXTUREFLAGS_UNUSED5, "Unused 5" },
 };
 
 static inline constexpr struct
