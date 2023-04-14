@@ -5,7 +5,12 @@ project(VTF_Edit_Revitalized CXX)
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
 set(CMAKE_BUILD_RPATH_USE_ORIGIN TRUE)
 set(CMAKE_INSTALL_RPATH $ORIGIN)
-set(CMAKE_CXX_STANDARD 20)
+
+if (WIN32)
+    set(CMAKE_CXX_STANDARD 23)
+else ()
+    set(CMAKE_CXX_STANDARD 20)
+endif ()
 
 option(CHAOS_INITIATIVE "Build Chaos Specific" OFF)
 
