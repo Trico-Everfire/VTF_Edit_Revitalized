@@ -30,6 +30,12 @@ jobs:
       - name: Build
         run: cmake --build ${{github.workspace}}/build --config ${{matrix.build_type}}
 
+      - name: copy VTFLib Library
+        uses: canastro/copy-file-action@master
+        with:
+          source: ${{github.workspace}}\build\libs\VTFLib\libvtflib.so
+          target: ${{github.workspace}}\build\libvtflib.so
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
@@ -75,6 +81,12 @@ jobs:
       - name: Build
         run: cmake --build build --config ${{matrix.build_type}}
 
+      - name: copy VTFLib Library
+        uses: canastro/copy-file-action@master
+        with:
+          source: ${{github.workspace}}\build\libs\VTFLib\vtflib.dll
+          target: ${{github.workspace}}\build\vtflib.dll
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
@@ -85,5 +97,4 @@ jobs:
             ${{github.workspace}}\build\platforms\*.dll
             ${{github.workspace}}\build\tls\*.dll
             ${{github.workspace}}\build\imageformats\*.dll
-            ${{github.workspace}}/libs/Steam-Workshop-API/sdk/openssl/*.dll
             
