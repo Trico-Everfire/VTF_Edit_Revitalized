@@ -30,12 +30,6 @@ jobs:
       - name: Build
         run: cmake --build ${{github.workspace}}/build --config ${{matrix.build_type}}
 
-      - name: copy VTFLib Library
-        uses: canastro/copy-file-action@master
-        with:
-          source: ${{github.workspace}}\build\libs\VTFLib\libvtflib.so
-          target: ${{github.workspace}}\build\libvtflib.so
-
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
@@ -44,6 +38,7 @@ jobs:
             ${{github.workspace}}/build/VTF_Edit_Revitalized
             ${{github.workspace}}/build/tls/*.so*
             ${{github.workspace}}/build/imageformats/*.so*
+            ${{github.workspace}}\build\libs\VTFLib\libvtflib.so
             ${{github.workspace}}/build/platforms/*.so*
             ${{github.workspace}}/build/*.so*
 
@@ -81,12 +76,6 @@ jobs:
       - name: Build
         run: cmake --build build --config ${{matrix.build_type}}
 
-      - name: copy VTFLib Library
-        uses: canastro/copy-file-action@master
-        with:
-          source: ${{github.workspace}}\build\libs\VTFLib\vtflib.dll
-          target: ${{github.workspace}}\build\vtflib.dll
-
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
@@ -95,6 +84,7 @@ jobs:
             ${{github.workspace}}\build\*.exe
             ${{github.workspace}}\build\*.dll
             ${{github.workspace}}\build\platforms\*.dll
+            ${{github.workspace}}\build\libs\VTFLib\vtflib.dll
             ${{github.workspace}}\build\tls\*.dll
             ${{github.workspace}}\build\imageformats\*.dll
             
