@@ -7,7 +7,7 @@ set(CMAKE_BUILD_RPATH_USE_ORIGIN TRUE)
 set(CMAKE_INSTALL_RPATH $ORIGIN)
 
 if (WIN32)
-    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_STANDARD 23)
 else ()
     set(CMAKE_CXX_STANDARD 20)
 endif ()
@@ -29,6 +29,9 @@ option(NORMAL_GENERATION "Build Normal Generation (WIP)" OFF)
 if (NORMAL_GENERATION)
     add_definitions(-DNORMAL_GENERATION)
 endif ()
+
+# MT/MTd specification for Windows
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
