@@ -4,6 +4,7 @@
 
 #include "../libs/stb/stb_image.h"
 #include "ImageSettingsWidget.h"
+#include "MainWindow.h"
 #include "flagsandformats.hpp"
 
 #include <QAction>
@@ -13,14 +14,12 @@
 #include <QDebug>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
-#include <QFile>
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QScrollArea>
 #include <QTabWidget>
 #include <cmath>
 
@@ -167,7 +166,7 @@ VTFLib::CVTFFile *VTFEImport::GenerateVTF( VTFErrorType &err )
 	for ( int i = 0; i < imageList.size(); i++ )
 	{
 		vlByte *imgData;
-		if ( !( VTFCreateOptions.ImageFormat == IMAGE_FORMAT_RGBA32323232F || VTFCreateOptions.ImageFormat == IMAGE_FORMAT_RGB323232F || VTFCreateOptions.ImageFormat == IMAGE_FORMAT_RGBA16161616F ) )
+		if ( !( VTFCreateOptions.ImageFormat == IMAGE_FORMAT_RGBA32323232F || VTFCreateOptions.ImageFormat == IMAGE_FORMAT_RGB323232F || VTFCreateOptions.ImageFormat == IMAGE_FORMAT_RGBA16161616F || VTFCreateOptions.ImageFormat == IMAGE_FORMAT_R32F ) )
 		{
 			imgData = new vlByte[VTFLib::CVTFFile::ComputeImageSize( imageList[i]->getWidth(), imageList[i]->getHeight(), 1, IMAGE_FORMAT_RGBA8888 )];
 			VTFLib::CVTFFile::Convert( imageList[i]->getData(), imgData, imageList[i]->getWidth(), imageList[i]->getHeight(), imageList[i]->getFormat(), IMAGE_FORMAT_RGBA8888 );
@@ -396,20 +395,63 @@ void VTFEImport::InitializeWidgets()
 	widget->addTab( pAdvancedTab, tr( "Advanced" ) );
 	widget->addTab( pResourceTab, tr( "Resource" ) );
 	vBLayout->addWidget( widget, 0, 0, 1, 2 );
-	QPushButton *preview = new QPushButton( this );
-	preview->setText( tr( "Preview" ) );
+	auto pPreviewButton = new QPushButton( this );
+	pPreviewButton->setText( tr( "Preview" ) );
 	connect(
-		preview, &QPushButton::pressed,
+		pPreviewButton, &QPushButton::pressed,
 		[&]()
 		{
 			auto dialog = new QDialog();
 			auto vRLayout = new QGridLayout( dialog );
-			auto scrollArea = new QScrollArea( dialog );
+
+			auto scrollArea = new ui::ZoomScrollArea( dialog );
 			auto vIVW = new ImageViewWidget( scrollArea );
 			scrollArea->setWidget( vIVW );
 			auto vISW = new ImageSettingsWidget( vIVW, dialog );
 			vRLayout->addWidget( vISW, 0, 0 );
 			vRLayout->addWidget( scrollArea, 0, 1, Qt::AlignCenter );
+
+			connect( scrollArea, &ui::ZoomScrollArea::onScrollUp, dialog, [vIVW]
+					 {
+						 vIVW->zoom( 0.1 );
+					 } );
+
+			connect( scrollArea, &ui::ZoomScrollArea::onScrollDown, dialog, [vIVW]
+					 {
+						 vIVW->zoom( -0.1 );
+					 } );
+
+			auto pMainMenuBar = new QMenuBar( dialog );
+
+			auto pViewMenu = pMainMenuBar->addMenu( "View" );
+			auto redBox = ui::CMainWindow::createCheckableAction( "Red", pViewMenu );
+			auto greenBox = ui::CMainWindow::createCheckableAction( "Green", pViewMenu );
+			auto blueBox = ui::CMainWindow::createCheckableAction( "Blue", pViewMenu );
+			auto alphaBox = ui::CMainWindow::createCheckableAction( "Alpha", pViewMenu );
+
+			connect( redBox, &QAction::triggered, dialog, [vIVW]( bool checked )
+					 {
+						 vIVW->set_red( checked );
+					 } );
+			connect( greenBox, &QAction::triggered, dialog, [vIVW]( bool checked )
+					 {
+						 vIVW->set_green( checked );
+					 } );
+			connect( blueBox, &QAction::triggered, dialog, [vIVW]( bool checked )
+					 {
+						 vIVW->set_blue( checked );
+					 } );
+			connect( alphaBox, &QAction::triggered, dialog, [vIVW]( bool checked )
+					 {
+						 vIVW->set_alpha( checked );
+					 } );
+
+			pViewMenu->addAction( redBox );
+			pViewMenu->addAction( greenBox );
+			pViewMenu->addAction( blueBox );
+			pViewMenu->addAction( alphaBox );
+
+			vRLayout->setMenuBar( pMainMenuBar );
 
 			VTFErrorType err;
 			auto vtfFile = GenerateVTF( err );
@@ -419,10 +461,11 @@ void VTFEImport::InitializeWidgets()
 				vISW->set_vtf( vtfFile );
 			}
 			scrollArea->resize( dialog->width() + vISW->width(), dialog->height() );
+			dialog->setAttribute( Qt::WA_DeleteOnClose );
 			dialog->exec();
 			delete vtfFile;
 		} );
-	vBLayout->addWidget( preview, 1, 0, Qt::AlignLeft );
+	vBLayout->addWidget( pPreviewButton, 1, 0, Qt::AlignLeft );
 
 	auto blayoutBox = new QDialogButtonBox( this );
 	auto accept = blayoutBox->addButton( "Accept", QDialogButtonBox::AcceptRole );
@@ -448,7 +491,7 @@ VTFEImport *VTFEImport::FromVTF( QWidget *pParent, VTFLib::CVTFFile *pFile )
 	auto vVTFImport = new VTFEImport( pParent );
 
 	int type = 0;
-	int fImageAmount = pFile->GetFrameCount();
+	vlUInt fImageAmount = pFile->GetFrameCount();
 	if ( pFile->GetFaceCount() > fImageAmount )
 	{
 		fImageAmount = pFile->GetFaceCount();

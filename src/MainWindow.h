@@ -39,7 +39,7 @@ namespace ui
 		void setupMenuBar();
 		void openVTF();
 		void importFromFile();
-		void generateVTFFromImage( QString filePath );
+		void generateVTFFromImage( const QString &filePath );
 		void generateVTFFromImages( QStringList filePaths );
 		void addVTFToTab( VTFLib::CVTFFile *pVTF, const QString &name );
 		void NewVTFFromVTF( const QString &filePath );
@@ -47,13 +47,13 @@ namespace ui
 		void exportVTFToFile();
 		void saveVTFToFile();
 		void compressVTFFile();
-		void compressMultiVTFFile();
 		void processCLIArguments( const int &argCount, char **pString );
-		QAction *createCheckableAction( QString name, QObject *parent ) const;
+		static QAction *createCheckableAction( const QString &name, QObject *parent );
 		QAction *redBox;
 		QAction *greenBox;
 		QAction *blueBox;
 		QAction *alphaBox;
+		void ImageToVTF();
 	};
 
 	class ZoomScrollArea : public QScrollArea

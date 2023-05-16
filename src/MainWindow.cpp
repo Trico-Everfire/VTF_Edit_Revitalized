@@ -2,12 +2,14 @@
 
 #include "VTFEImport.h"
 
+#include <QApplication>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QGridLayout>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QStyle>
 
 using namespace ui;
 
@@ -146,16 +148,18 @@ void CMainWindow::setupMenuBar()
 	auto pFileMenuTab = m_pMainMenuBar->addMenu( "File" );
 	pFileMenuTab->addAction( "Open", this, &CMainWindow::openVTF );
 	pFileMenuTab->addAction( "Save", this, &CMainWindow::saveVTFToFile );
-	pFileMenuTab->addAction( "Import...", this, &CMainWindow::importFromFile );
 	pFileMenuTab->addAction( "Export", this, &CMainWindow::exportVTFToFile );
+	pFileMenuTab->addAction( "Import...", this, &CMainWindow::importFromFile );
+
 	auto pToolMenuTab = m_pMainMenuBar->addMenu( "Tools" );
-	pToolMenuTab->addAction( "Compress File", this, &CMainWindow::compressVTFFile );
-	pToolMenuTab->addAction( "Compress Folder", this, &CMainWindow::compressMultiVTFFile );
-	auto viewMenu = m_pMainMenuBar->addMenu( "View" );
-	redBox = createCheckableAction( "Red", viewMenu );
-	greenBox = createCheckableAction( "Green", viewMenu );
-	blueBox = createCheckableAction( "Blue", viewMenu );
-	alphaBox = createCheckableAction( "Alpha", viewMenu );
+	pToolMenuTab->addAction( "VTF Version Editor", this, &CMainWindow::compressVTFFile );
+	pToolMenuTab->addAction( "Folder to VTF", this, &CMainWindow::ImageToVTF );
+
+	auto pViewMenu = m_pMainMenuBar->addMenu( "View" );
+	redBox = createCheckableAction( "Red", pViewMenu );
+	greenBox = createCheckableAction( "Green", pViewMenu );
+	blueBox = createCheckableAction( "Blue", pViewMenu );
+	alphaBox = createCheckableAction( "Alpha", pViewMenu );
 	connect( redBox, &QAction::triggered, [this]( bool checked )
 			 {
 				 pImageViewWidget->set_red( checked );
@@ -172,13 +176,13 @@ void CMainWindow::setupMenuBar()
 			 {
 				 pImageViewWidget->set_alpha( checked );
 			 } );
-	viewMenu->addAction( redBox );
-	viewMenu->addAction( greenBox );
-	viewMenu->addAction( blueBox );
-	viewMenu->addAction( alphaBox );
+	pViewMenu->addAction( redBox );
+	pViewMenu->addAction( greenBox );
+	pViewMenu->addAction( blueBox );
+	pViewMenu->addAction( alphaBox );
 }
 
-QAction *CMainWindow::createCheckableAction( QString name, QObject *parent ) const
+QAction *CMainWindow::createCheckableAction( const QString &name, QObject *parent )
 {
 	auto maskBox = new QAction( name, parent );
 	maskBox->setCheckable( true );
@@ -188,81 +192,6 @@ QAction *CMainWindow::createCheckableAction( QString name, QObject *parent ) con
 
 void CMainWindow::compressVTFFile()
 {
-	QString filePath = QFileDialog::getOpenFileName(
-		this, "Open VTF", QDir::currentPath(), "*.vtf", nullptr, QFileDialog::Option::DontUseNativeDialog );
-
-	if ( filePath.isEmpty() )
-		return;
-
-	VTFLib::CVTFFile *pVTF = getVTFFromVTFFile( filePath.toUtf8().constData() );
-
-	if ( !pVTF )
-	{
-		QMessageBox::warning( this, "INVALID VTF", "The VTF is invalid.", QMessageBox::Ok );
-		return;
-	}
-
-	auto pCompressionDialog = new QDialog( this );
-	auto vBLayout = new QGridLayout( pCompressionDialog );
-
-	auto pAuxCompressionBox = new QCheckBox( pCompressionDialog );
-	pAuxCompressionBox->setText( tr( "AUX Compression" ) );
-	vBLayout->addWidget( pAuxCompressionBox, 1, 0, Qt::AlignLeft );
-
-	auto label2 = new QLabel( pCompressionDialog );
-	label2->setText( tr( "Aux Compression Level:" ) );
-	vBLayout->addWidget( label2, 2, 0, Qt::AlignLeft );
-	auto pAuxCompressionLevelBox = new QComboBox( pCompressionDialog );
-	for ( int i = 0; i <= 9; i++ )
-	{
-		pAuxCompressionLevelBox->addItem( QString::number( i ), i );
-	}
-	pAuxCompressionLevelBox->setCurrentIndex( pAuxCompressionLevelBox->count() - 1 );
-	vBLayout->addWidget( pAuxCompressionLevelBox, 2, 1, Qt::AlignRight );
-
-	auto pOkButton = new QPushButton( "Compress", pCompressionDialog );
-	vBLayout->addWidget( pOkButton, 3, 0, Qt::AlignRight );
-
-	auto pCancelButton = new QPushButton( "Cancel", pCompressionDialog );
-	vBLayout->addWidget( pCancelButton, 3, 1, Qt::AlignRight );
-
-	bool compress = false;
-
-	connect( pOkButton, &QPushButton::pressed, pCompressionDialog, [pCompressionDialog, &compress]
-			 {
-				 compress = true;
-				 pCompressionDialog->close();
-			 } );
-
-	connect( pCancelButton, &QPushButton::pressed, pCompressionDialog, &QDialog::close );
-
-	pCompressionDialog->exec();
-
-	if ( !compress )
-		return;
-
-	if ( !pAuxCompressionBox->isChecked() )
-	{
-		if ( pVTF->GetMinorVersion() < 6 )
-		{
-			delete pVTF;
-			return;
-		}
-		pVTF->SetVersion( 7, 5 );
-	}
-	else
-	{
-		pVTF->SetVersion( 7, 6 );
-		pVTF->SetAuxCompressionLevel( pAuxCompressionLevelBox->currentData().toInt() );
-	}
-
-	pVTF->Save( filePath.toUtf8().constData() );
-
-	delete pVTF;
-}
-
-void CMainWindow::compressMultiVTFFile()
-{
 	QStringList filePaths = QFileDialog::getOpenFileNames(
 		this, "Open VTF", QDir::currentPath(), "*.vtf", nullptr, QFileDialog::Option::DontUseNativeDialog );
 
@@ -270,31 +199,98 @@ void CMainWindow::compressMultiVTFFile()
 		return;
 
 	auto pCompressionDialog = new QDialog( this );
+	pCompressionDialog->setWindowTitle( "VTF Version Editor" );
 	auto vBLayout = new QGridLayout( pCompressionDialog );
 
+	auto label1 = new QLabel( "VTF Version:", this );
+	vBLayout->addWidget( label1, 0, 0, Qt::AlignLeft );
+
+	auto pVtfVersionBox = new QComboBox( this );
+#ifdef CHAOS_INITIATIVE
+	for ( int i = 0; i <= VTF_MINOR_VERSION; i++ )
+#else
+	for ( int i = 0; i <= 5; i++ )
+#endif
+	{
+		pVtfVersionBox->addItem( QString::number( VTF_MAJOR_VERSION ) + "." + QString::number( i ), i );
+	}
+	pVtfVersionBox->setCurrentIndex( pVtfVersionBox->count() - 2 );
+	vBLayout->addWidget( pVtfVersionBox, 0, 1, Qt::AlignRight );
+
+#ifdef CHAOS_INITIATIVE
 	auto pAuxCompressionBox = new QCheckBox( pCompressionDialog );
 	pAuxCompressionBox->setText( tr( "AUX Compression" ) );
+	pAuxCompressionBox->setDisabled( true );
 	vBLayout->addWidget( pAuxCompressionBox, 1, 0, Qt::AlignLeft );
 
-	auto label2 = new QLabel( pCompressionDialog );
-	label2->setText( tr( "Aux Compression Level:" ) );
+	auto label2 = new QLabel( "Aux Compression Level:", pCompressionDialog );
+	label2->setDisabled( true );
+
 	vBLayout->addWidget( label2, 2, 0, Qt::AlignLeft );
 	auto pAuxCompressionLevelBox = new QComboBox( pCompressionDialog );
 	for ( int i = 0; i <= 9; i++ )
 	{
 		pAuxCompressionLevelBox->addItem( QString::number( i ), i );
 	}
+	pAuxCompressionLevelBox->setDisabled( true );
 	pAuxCompressionLevelBox->setCurrentIndex( pAuxCompressionLevelBox->count() - 1 );
 	vBLayout->addWidget( pAuxCompressionLevelBox, 2, 1, Qt::AlignRight );
+#endif
 
-	auto pOkButton = new QPushButton( "Compress", pCompressionDialog );
-	vBLayout->addWidget( pOkButton, 3, 0, Qt::AlignRight );
+	auto pCustomDestination = new QCheckBox( "Custom Destination", pCompressionDialog );
+	vBLayout->addWidget( pCustomDestination, 3, 0 );
+
+	auto pDestinationLocation = new QLineEdit( "In Place", pCompressionDialog );
+	pDestinationLocation->setReadOnly( true );
+	pDestinationLocation->setDisabled( true );
+
+	vBLayout->addWidget( pDestinationLocation, 4, 0 );
+
+	auto pSelectDestinationLocation = new QPushButton( pCompressionDialog );
+	pSelectDestinationLocation->setDisabled( true );
+
+	pSelectDestinationLocation->setIcon( qApp->style()->standardIcon( QStyle::SP_FileDialogContentsView ) );
+
+	vBLayout->addWidget( pSelectDestinationLocation, 4, 1 );
+
+	auto pButtonLayout = new QHBoxLayout();
+
+	auto pOkButton = new QPushButton( "Update Version", pCompressionDialog );
+	pButtonLayout->addWidget( pOkButton, Qt::AlignCenter );
 
 	auto pCancelButton = new QPushButton( "Cancel", pCompressionDialog );
-	vBLayout->addWidget( pCancelButton, 3, 1, Qt::AlignRight );
+	pButtonLayout->addWidget( pCancelButton, Qt::AlignCenter );
+
+	vBLayout->addLayout( pButtonLayout, 5, 0, 1, 2 );
 
 	bool compress = false;
 
+	connect( pVtfVersionBox, &QComboBox::currentTextChanged, pCompressionDialog, [pVtfVersionBox, pAuxCompressionBox, pAuxCompressionLevelBox, label2]()
+			 {
+				 pAuxCompressionBox->setEnabled( pVtfVersionBox->currentData().toInt() >= 6 );
+				 pAuxCompressionBox->toggled( pVtfVersionBox->currentData().toInt() >= 6 && pAuxCompressionBox->isChecked() );
+			 } );
+
+	connect( pAuxCompressionBox, &QCheckBox::toggled, pCompressionDialog, [pAuxCompressionLevelBox, label2]( bool checked )
+			 {
+				 pAuxCompressionLevelBox->setEnabled( checked );
+				 label2->setEnabled( checked );
+			 } );
+
+	connect( pCustomDestination, &QCheckBox::toggled, pCompressionDialog, [pDestinationLocation, pSelectDestinationLocation]( bool checked )
+			 {
+				 pDestinationLocation->setEnabled( checked );
+				 pDestinationLocation->setText( "" );
+				 pSelectDestinationLocation->setEnabled( checked );
+			 } );
+
+	connect( pSelectDestinationLocation, &QPushButton::pressed, pCompressionDialog, [pDestinationLocation]
+			 {
+				 pDestinationLocation->setText( QFileDialog::getExistingDirectory( nullptr, "Save to:", QDir::currentPath() ) );
+			 } );
+
+	// This is fine, ->exec() stalls the application until closed so compress never falls
+	// out of scope.
 	connect( pOkButton, &QPushButton::pressed, pCompressionDialog, [pCompressionDialog, &compress]
 			 {
 				 compress = true;
@@ -307,6 +303,18 @@ void CMainWindow::compressMultiVTFFile()
 
 	if ( !compress )
 		return;
+
+	QString pathDirectory {};
+	if ( pCustomDestination->isChecked() )
+	{
+		if ( !pDestinationLocation->text().isEmpty() )
+			pathDirectory = pDestinationLocation->text();
+		else
+		{
+			QMessageBox::warning( this, "EMPTY DESTINATION!", "The destination is left empty, cancelling.", QMessageBox::Ok );
+			return;
+		}
+	}
 
 	foreach( QString filePath, filePaths )
 	{
@@ -318,25 +326,27 @@ void CMainWindow::compressMultiVTFFile()
 			return;
 		}
 
-		if ( !pAuxCompressionBox->isChecked() )
+		if ( pVTF->GetMinorVersion() == pVtfVersionBox->currentData().toInt() && pVTF->GetAuxCompressionLevel() == pAuxCompressionLevelBox->currentData().toInt() )
+			continue;
+
+		pVTF->SetVersion( 7, pVtfVersionBox->currentData().toInt() );
+
+		if ( pAuxCompressionBox->isChecked() )
 		{
-			if ( pVTF->GetMinorVersion() < 6 )
-			{
-				delete pVTF;
-				continue;
-			}
-			pVTF->SetVersion( 7, 5 );
-		}
-		else
-		{
-			pVTF->SetVersion( 7, 6 );
 			pVTF->SetAuxCompressionLevel( pAuxCompressionLevelBox->currentData().toInt() );
 		}
 
-		pVTF->Save( filePath.toUtf8().constData() );
+		if ( pathDirectory.isEmpty() )
+			pVTF->Save( filePath.toUtf8().constData() );
+		else
+			pVTF->Save( ( pathDirectory + "/" + QFileInfo( filePath ).fileName() ).toUtf8().constData() );
 
 		delete pVTF;
 	}
+}
+
+void CMainWindow::ImageToVTF()
+{
 }
 
 void CMainWindow::importFromFile()
@@ -406,7 +416,7 @@ void CMainWindow::openVTF()
 	addVTFFromPathToTab( filePath );
 }
 
-void CMainWindow::generateVTFFromImage( QString filePath )
+void CMainWindow::generateVTFFromImage( const QString &filePath )
 {
 	if ( filePath.isEmpty() )
 		return;
@@ -532,6 +542,9 @@ void CMainWindow::saveVTFToFile()
 		this, "Save VTF",
 		QDir::currentPath(), "*.vtf", nullptr,
 		QFileDialog::Option::DontUseNativeDialog );
+
+	if ( filePath.isEmpty() )
+		return;
 
 	if ( !filePath.endsWith( ".vtf" ) )
 		filePath.append( ".vtf" );

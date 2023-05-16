@@ -69,7 +69,10 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt5 REQUIRED COMPONENTS Widgets Core Gui Network)
+find_package(OpenGL REQUIRED)
+find_package(GLUT REQUIRED)
+
+find_package(Qt5 REQUIRED COMPONENTS Widgets Core Gui OpenGL)
 
 set(SRC
         main.cpp
@@ -112,7 +115,7 @@ add_subdirectory(libs/SpeedyKV)
 add_executable(${PROJECT_NAME} ${SRC})
 target_link_libraries(${PROJECT_NAME} PRIVATE Qt5::Widgets Qt5::Core Qt5::Gui vtflib fmt::fmt keyvalues)
 
-target_include_directories(${PROJECT_NAME} PRIVATE "${QT_INCLUDE} ${QT_INCLUDE}/QtWidgets" "${QT_INCLUDE}/QtGui" "${QT_INCLUDE}/QtCore")
+target_include_directories(${PROJECT_NAME} PRIVATE "${QT_INCLUDE} ${QT_INCLUDE}/QtWidgets" "${QT_INCLUDE}/QtGui" "${QT_INCLUDE}/QtCore" ${QT_INCLUDE}/QtOpenGL ${OPENGL_LIBRARIES} ${GLUT_LIBRARY})
 
 if (WIN32)
     # Copy these to bundle them with the program in releases
