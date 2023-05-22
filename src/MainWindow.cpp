@@ -29,9 +29,20 @@ CMainWindow::CMainWindow( QWidget *pParent ) :
 
 	auto scrollWidget = new ZoomScrollArea( this );
 
-	pImageViewWidget = new ImageViewWidget( this );
+	pImageViewWidget = new ImageViewWidget( nullptr );
 
-	scrollWidget->setWidget( pImageViewWidget );
+	QVulkanInstance *inst = new QVulkanInstance();
+	inst->setLayers( { "VK_LAYER_KHRONOS_validation" } );
+	if ( !inst->create() )
+		qFatal( "Failed to create Vulkan instance: %d", inst->errorCode() );
+
+	pImageViewWidget->setVulkanInstance( inst );
+
+	auto wrapper = QWidget::createWindowContainer( pImageViewWidget, this );
+
+	wrapper->resize( 1024, 1024 );
+
+	scrollWidget->setWidget( wrapper );
 	scrollWidget->setMinimumSize( 512, 512 );
 
 	pMainLayout->addWidget( scrollWidget, 1, 1, Qt::AlignTop );
@@ -352,7 +363,7 @@ void CMainWindow::ImageToVTF()
 void CMainWindow::importFromFile()
 {
 	QStringList filePaths = QFileDialog::getOpenFileNames(
-		this, "Open", "./", "*.bmp *.gif *.jpg *.jpeg *.png *.tga *.hdr *.vtf", nullptr,
+		this, "Open", "./", "*.bmp *.gif *.jpg *.jpeg *.png *.tga *.hdr *.tif *.vtf", nullptr,
 		QFileDialog::Option::DontUseNativeDialog );
 
 	foreach( auto str, filePaths )

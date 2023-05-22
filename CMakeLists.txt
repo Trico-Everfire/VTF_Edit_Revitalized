@@ -72,16 +72,20 @@ set(CMAKE_AUTORCC ON)
 find_package(OpenGL REQUIRED)
 find_package(GLUT REQUIRED)
 
+find_package(Vulkan)
+
 find_package(Qt5 REQUIRED COMPONENTS Widgets Core Gui OpenGL)
+
+if (NOT ${Vulkan_INCLUDE_DIRS} STREQUAL "")
+    set(VULKAN_PATH ${Vulkan_INCLUDE_DIRS})
+    STRING(REGEX REPLACE "/Include" "" VULKAN_PATH ${VULKAN_PATH})
+endif ()
+
 
 set(SRC
         main.cpp
-        #        dialogs/VTFEdit.cpp
-        #        dialogs/VTFEdit.h
         src/VTFEImport.cpp
         src/VTFEImport.h
-        #        widgets/VPKDirectoryHandler.cpp
-        #        widgets/VPKDirectoryHandler.h
         src/ImageViewWidget.cpp
         src/ImageViewWidget.h
         src/ResourceWidget.cpp
@@ -93,19 +97,11 @@ set(SRC
         src/flagsandformats.hpp
         src/InfoWidget.cpp
         src/InfoWidget.h
-        #        widgets/VTFQMenuBar.cpp
-        #        widgets/VTFQMenuBar.h
-        #        dialogs/VTFEAbout.cpp
-        #        dialogs/VTFEAbout.h
-        #        common/VTFEImageFormat.cpp
         src/VTFEImageFormat.h
         libs/stb/stb_image.h
-        #        dialogs/VTFEConfigFile.cpp
-        #        dialogs/VTFEConfigFile.h
-        #        widgets/VMTQSyntaxHighlighter.cpp
-        #        widgets/VMTQSyntaxHighlighter.h
-
-        src/MainWindow.cpp src/MainWindow.h)
+        src/MainWindow.cpp
+        src/MainWindow.h
+)
 
 add_subdirectory(libs/VTFLib)
 add_subdirectory(libs/fmt)
@@ -113,7 +109,7 @@ add_subdirectory(libs/fmt)
 add_subdirectory(libs/SpeedyKV)
 
 add_executable(${PROJECT_NAME} ${SRC})
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt5::Widgets Qt5::Core Qt5::Gui vtflib fmt::fmt keyvalues)
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt5::Widgets Qt5::Core Qt5::Gui vtflib fmt::fmt keyvalues Vulkan::Vulkan)
 
 target_include_directories(${PROJECT_NAME} PRIVATE "${QT_INCLUDE} ${QT_INCLUDE}/QtWidgets" "${QT_INCLUDE}/QtGui" "${QT_INCLUDE}/QtCore" ${QT_INCLUDE}/QtOpenGL ${OPENGL_LIBRARIES} ${GLUT_LIBRARY})
 

@@ -29,7 +29,7 @@ namespace ui
 	public:
 		CVTFEdit( QWidget *pParent );
 		bool setVTFFromFile( const char *path );
-		ImageViewWidget *pImageViewWidget = new ImageViewWidget( this );
+		ImageViewWidget *pImageViewWidget = new ImageViewWidget( nullptr );
 		VFileScrollArea *pVFileWidgetScrollArea = new VFileScrollArea( this );
 		ImageSettingsWidget *pImageSettingsWidget = new ImageSettingsWidget( pImageViewWidget, this );
 		InfoWidget *pInfoWidget = new InfoWidget( this );

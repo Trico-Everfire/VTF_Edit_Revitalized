@@ -86,7 +86,12 @@ void VTFEImport::AddImage( const QString &qString )
 
 	const char *file = qString.toUtf8().constData();
 
-	if ( !stbi_is_hdr( file ) )
+	if ( qString.endsWith( ".tif" ) )
+	{
+	}
+	else
+
+		if ( !stbi_is_hdr( file ) )
 	{
 		vlByte *data = stbi_load( file, &x, &y, &n, 4 );
 
@@ -397,74 +402,74 @@ void VTFEImport::InitializeWidgets()
 	vBLayout->addWidget( widget, 0, 0, 1, 2 );
 	auto pPreviewButton = new QPushButton( this );
 	pPreviewButton->setText( tr( "Preview" ) );
-	connect(
-		pPreviewButton, &QPushButton::pressed,
-		[&]()
-		{
-			auto dialog = new QDialog();
-			auto vRLayout = new QGridLayout( dialog );
-
-			auto scrollArea = new ui::ZoomScrollArea( dialog );
-			auto vIVW = new ImageViewWidget( scrollArea );
-			scrollArea->setWidget( vIVW );
-			auto vISW = new ImageSettingsWidget( vIVW, dialog );
-			vRLayout->addWidget( vISW, 0, 0 );
-			vRLayout->addWidget( scrollArea, 0, 1, Qt::AlignCenter );
-
-			connect( scrollArea, &ui::ZoomScrollArea::onScrollUp, dialog, [vIVW]
-					 {
-						 vIVW->zoom( 0.1 );
-					 } );
-
-			connect( scrollArea, &ui::ZoomScrollArea::onScrollDown, dialog, [vIVW]
-					 {
-						 vIVW->zoom( -0.1 );
-					 } );
-
-			auto pMainMenuBar = new QMenuBar( dialog );
-
-			auto pViewMenu = pMainMenuBar->addMenu( "View" );
-			auto redBox = ui::CMainWindow::createCheckableAction( "Red", pViewMenu );
-			auto greenBox = ui::CMainWindow::createCheckableAction( "Green", pViewMenu );
-			auto blueBox = ui::CMainWindow::createCheckableAction( "Blue", pViewMenu );
-			auto alphaBox = ui::CMainWindow::createCheckableAction( "Alpha", pViewMenu );
-
-			connect( redBox, &QAction::triggered, dialog, [vIVW]( bool checked )
-					 {
-						 vIVW->set_red( checked );
-					 } );
-			connect( greenBox, &QAction::triggered, dialog, [vIVW]( bool checked )
-					 {
-						 vIVW->set_green( checked );
-					 } );
-			connect( blueBox, &QAction::triggered, dialog, [vIVW]( bool checked )
-					 {
-						 vIVW->set_blue( checked );
-					 } );
-			connect( alphaBox, &QAction::triggered, dialog, [vIVW]( bool checked )
-					 {
-						 vIVW->set_alpha( checked );
-					 } );
-
-			pViewMenu->addAction( redBox );
-			pViewMenu->addAction( greenBox );
-			pViewMenu->addAction( blueBox );
-			pViewMenu->addAction( alphaBox );
-
-			vRLayout->setMenuBar( pMainMenuBar );
-
-			VTFErrorType err;
-			auto vtfFile = GenerateVTF( err );
-			if ( err == SUCCESS )
-			{
-				vIVW->set_vtf( vtfFile );
-				vISW->set_vtf( vtfFile );
-			}
-			scrollArea->resize( dialog->width() + vISW->width(), dialog->height() );
-			dialog->setAttribute( Qt::WA_DeleteOnClose );
-			dialog->exec();
-			delete vtfFile;
-		} );
+	//	connect(
+	//		pPreviewButton, &QPushButton::pressed,
+	//		[&]()
+	//		{
+	//			auto dialog = new QDialog();
+	//			auto vRLayout = new QGridLayout( dialog );
+	//
+	//			auto scrollArea = new ui::ZoomScrollArea( dialog );
+	//			auto vIVW = new ImageViewWidget( scrollArea );
+	//			scrollArea->setWidget( vIVW );
+	//			auto vISW = new ImageSettingsWidget( vIVW, dialog );
+	//			vRLayout->addWidget( vISW, 0, 0 );
+	//			vRLayout->addWidget( scrollArea, 0, 1, Qt::AlignCenter );
+	//
+	//			connect( scrollArea, &ui::ZoomScrollArea::onScrollUp, dialog, [vIVW]
+	//					 {
+	//						 vIVW->zoom( 0.1 );
+	//					 } );
+	//
+	//			connect( scrollArea, &ui::ZoomScrollArea::onScrollDown, dialog, [vIVW]
+	//					 {
+	//						 vIVW->zoom( -0.1 );
+	//					 } );
+	//
+	//			auto pMainMenuBar = new QMenuBar( dialog );
+	//
+	//			auto pViewMenu = pMainMenuBar->addMenu( "View" );
+	//			auto redBox = ui::CMainWindow::createCheckableAction( "Red", pViewMenu );
+	//			auto greenBox = ui::CMainWindow::createCheckableAction( "Green", pViewMenu );
+	//			auto blueBox = ui::CMainWindow::createCheckableAction( "Blue", pViewMenu );
+	//			auto alphaBox = ui::CMainWindow::createCheckableAction( "Alpha", pViewMenu );
+	//
+	//			connect( redBox, &QAction::triggered, dialog, [vIVW]( bool checked )
+	//					 {
+	//						 vIVW->set_red( checked );
+	//					 } );
+	//			connect( greenBox, &QAction::triggered, dialog, [vIVW]( bool checked )
+	//					 {
+	//						 vIVW->set_green( checked );
+	//					 } );
+	//			connect( blueBox, &QAction::triggered, dialog, [vIVW]( bool checked )
+	//					 {
+	//						 vIVW->set_blue( checked );
+	//					 } );
+	//			connect( alphaBox, &QAction::triggered, dialog, [vIVW]( bool checked )
+	//					 {
+	//						 vIVW->set_alpha( checked );
+	//					 } );
+	//
+	//			pViewMenu->addAction( redBox );
+	//			pViewMenu->addAction( greenBox );
+	//			pViewMenu->addAction( blueBox );
+	//			pViewMenu->addAction( alphaBox );
+	//
+	//			vRLayout->setMenuBar( pMainMenuBar );
+	//
+	//			VTFErrorType err;
+	//			auto vtfFile = GenerateVTF( err );
+	//			if ( err == SUCCESS )
+	//			{
+	//				vIVW->set_vtf( vtfFile );
+	//				vISW->set_vtf( vtfFile );
+	//			}
+	//			scrollArea->resize( dialog->width() + vISW->width(), dialog->height() );
+	//			dialog->setAttribute( Qt::WA_DeleteOnClose );
+	//			dialog->exec();
+	//			delete vtfFile;
+	//		} );
 	vBLayout->addWidget( pPreviewButton, 1, 0, Qt::AlignLeft );
 
 	auto blayoutBox = new QDialogButtonBox( this );

@@ -1,6 +1,8 @@
 #pragma once
 #include "../libs/VTFLib/VTFLib/VTFLib.h"
+#include "vulkan/vulkan.h"
 
+#include <QVulkanWindow>
 #include <QWidget>
 
 enum ColorSelection
@@ -13,12 +15,13 @@ enum ColorSelection
 	ALPHA
 };
 
-class ImageViewWidget : public QWidget
+class ImageViewWidget : public QVulkanWindow
 {
 	Q_OBJECT;
 
 public:
-	ImageViewWidget( QWidget *pParent = nullptr );
+	ImageViewWidget( QWindow *pParent = nullptr );
+	QVulkanWindowRenderer *createRenderer() override;
 
 	void set_pixmap( const QImage &pixmap );
 	void set_vtf( VTFLib::CVTFFile *file );
@@ -32,34 +35,28 @@ public:
 		return image_;
 	};
 
-	void paintEvent( QPaintEvent *event ) override;
-
 	void set_red( bool red )
 	{
 		red_ = red;
 		requestColorChange = true;
-		repaint();
 	}
 
 	void set_green( bool green )
 	{
 		green_ = green;
 		requestColorChange = true;
-		repaint();
 	}
 
 	void set_blue( bool blue )
 	{
 		blue_ = blue;
 		requestColorChange = true;
-		repaint();
 	}
 
 	void set_alpha( bool alpha )
 	{
 		alpha_ = alpha;
 		requestColorChange = true;
-		repaint();
 	}
 
 	void set_rgba( bool r, bool g, bool b, bool a )
@@ -69,23 +66,19 @@ public:
 		blue_ = b;
 		alpha_ = a;
 		requestColorChange = true;
-		repaint();
 	}
 
 	void set_frame( int f )
 	{
 		frame_ = f;
-		repaint();
 	}
 	void set_face( int f )
 	{
 		face_ = f;
-		repaint();
 	}
 	void set_mip( int f )
 	{
 		mip_ = f;
-		repaint();
 	}
 
 	void zoom( float amount );
@@ -112,4 +105,22 @@ private:
 	int currentFace_ = 0;
 	int currentMip_ = 0;
 	bool requestColorChange = false;
+};
+
+class VulkanRenderer : public QVulkanWindowRenderer
+{
+public:
+	VulkanRenderer( QVulkanWindow *w );
+
+	void initResources() override;
+	//	void initSwapChainResources() override;
+	//	void releaseSwapChainResources() override;
+	//	void releaseResources() override;
+
+	void startNextFrame() override;
+
+private:
+	QVulkanWindow *m_window;
+	QVulkanDeviceFunctions *m_devFuncs;
+	float m_green = 0;
 };
