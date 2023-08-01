@@ -527,8 +527,23 @@ VTFEImport *VTFEImport::FromVTF( QWidget *pParent, VTFLib::CVTFFile *pFile )
 	emit vVTFImport->pGeneralTab->pGenerateMipmapsCheckbox->clicked( pFile->GetMipmapCount() > 0 );
 	vVTFImport->pGeneralTab->pTypeCombo->setCurrentIndex( type );
 	vVTFImport->pGeneralTab->pTypeCombo->currentTextChanged( QString::number( type ) );
-	vVTFImport->pGeneralTab->pFormatCombo->setCurrentIndex(
-		vVTFImport->pGeneralTab->pFormatCombo->findData( pFile->GetFormat() ) );
+
+	if ( pFile->GetFormat() == IMAGE_FORMAT_ATI1N && pFile->HasOldATIFormat() )
+	{
+		vVTFImport->pGeneralTab->pFormatCombo->setCurrentIndex(
+			vVTFImport->pGeneralTab->pFormatCombo->findData( IMAGE_FORMAT_ATI1N_OLD ) );
+	}
+	else if ( pFile->GetFormat() == IMAGE_FORMAT_ATI2N && pFile->HasOldATIFormat() )
+	{
+		vVTFImport->pGeneralTab->pFormatCombo->setCurrentIndex(
+			vVTFImport->pGeneralTab->pFormatCombo->findData( IMAGE_FORMAT_ATI2N_OLD ) );
+	}
+	else
+	{
+		vVTFImport->pGeneralTab->pFormatCombo->setCurrentIndex(
+			vVTFImport->pGeneralTab->pFormatCombo->findData( pFile->GetFormat() ) );
+	}
+
 	vlSingle r;
 	vlSingle g;
 	vlSingle b;
@@ -567,7 +582,7 @@ void GeneralTab::GeneralOptions()
 	pFormatCombo = new QComboBox( this );
 	for ( auto &fmt : IMAGE_FORMATS )
 	{
-		if ( VTFLib::CVTFFile::GetImageFormatInfo( fmt.format ).bIsSupported )
+		if ( VTFLib::CVTFFile::GetImageFormatInfo( fmt.format ).bIsSupported || fmt.format == IMAGE_FORMAT_ATI1N_OLD || fmt.format == IMAGE_FORMAT_ATI2N_OLD )
 			pFormatCombo->addItem( tr( fmt.name ), (int)fmt.format );
 	}
 	vBLayout->addWidget( pFormatCombo, 0, 1, Qt::AlignRight );

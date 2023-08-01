@@ -52,6 +52,7 @@ CMainWindow::CMainWindow( QWidget *pParent ) :
 	pMainLayout->addWidget( pInfoResourceTabWidget, 0, 2, 2, 1, Qt::AlignRight );
 
 	m_pMainMenuBar = new QMenuBar( this );
+	m_pMainMenuBar->setNativeMenuBar( false );
 	pMainLayout->setMenuBar( m_pMainMenuBar );
 
 	connect( pImageTabWidget, &QTabBar::tabCloseRequested, this, &CMainWindow::removeVTFTab );
