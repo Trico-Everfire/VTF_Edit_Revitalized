@@ -193,6 +193,7 @@ QAction *CMainWindow::createCheckableAction( const QString &name, QObject *paren
 
 void CMainWindow::compressVTFFile()
 {
+#ifdef COMPRESSVTF
 	QStringList filePaths = QFileDialog::getOpenFileNames(
 		this, "Open VTF", QDir::currentPath(), "*.vtf", nullptr, QFileDialog::Option::DontUseNativeDialog );
 
@@ -344,6 +345,7 @@ void CMainWindow::compressVTFFile()
 
 		delete pVTF;
 	}
+#endif
 }
 
 void CMainWindow::ImageToVTF()
