@@ -71,7 +71,7 @@ jobs:
       - name: Configure CMake
         env:
           CMAKE_PREFIX_PATH: ${{env.Qt6_Dir}}
-        run: cmake -G "Ninja" -B build -DCMAKE_BUILD_TYPE=${{matrix.build_type}} -DQT_BASEDIR=${{github.workspace}}\libs\Qt\Qt\5.15.2\msvc2019_64
+        run: cmake -G "Ninja" -B build -DCMAKE_BUILD_TYPE=${{matrix.build_type}} -DCHAOS_INITIATIVE=ON -DQT_BASEDIR=${{github.workspace}}\libs\Qt\Qt\5.15.2\msvc2019_64
 
       - name: Build
         run: cmake --build build --config ${{matrix.build_type}}
