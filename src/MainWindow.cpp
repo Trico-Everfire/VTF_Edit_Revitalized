@@ -195,6 +195,7 @@ QAction *CMainWindow::createCheckableAction( const QString &name, QObject *paren
 
 void CMainWindow::compressVTFFile()
 {
+#ifdef COMPRESSVTF
 	QStringList filePaths = QFileDialog::getOpenFileNames(
 		this, "Open VTF", QDir::currentPath(), "*.vtf", nullptr, QFileDialog::Option::DontUseNativeDialog );
 
@@ -268,33 +269,33 @@ void CMainWindow::compressVTFFile()
 
 	bool compress = false;
 
-	connect( pVtfVersionBox, &QComboBox::currentTextChanged, pCompressionDialog, [pVtfVersionBox, pAuxCompressionBox, pAuxCompressionLevelBox, label2]()
+	connect( pVtfVersionBox, &QComboBox::currentTextChanged, pCompressionDialog, [&pVtfVersionBox, &pAuxCompressionBox]()
 			 {
 				 pAuxCompressionBox->setEnabled( pVtfVersionBox->currentData().toInt() >= 6 );
 				 pAuxCompressionBox->toggled( pVtfVersionBox->currentData().toInt() >= 6 && pAuxCompressionBox->isChecked() );
 			 } );
 
-	connect( pAuxCompressionBox, &QCheckBox::toggled, pCompressionDialog, [pAuxCompressionLevelBox, label2]( bool checked )
+	connect( pAuxCompressionBox, &QCheckBox::toggled, pCompressionDialog, [&pAuxCompressionLevelBox, &label2]( bool checked )
 			 {
 				 pAuxCompressionLevelBox->setEnabled( checked );
 				 label2->setEnabled( checked );
 			 } );
 
-	connect( pCustomDestination, &QCheckBox::toggled, pCompressionDialog, [pDestinationLocation, pSelectDestinationLocation]( bool checked )
+	connect( pCustomDestination, &QCheckBox::toggled, pCompressionDialog, [&pDestinationLocation, &pSelectDestinationLocation]( bool checked )
 			 {
 				 pDestinationLocation->setEnabled( checked );
 				 pDestinationLocation->setText( "" );
 				 pSelectDestinationLocation->setEnabled( checked );
 			 } );
 
-	connect( pSelectDestinationLocation, &QPushButton::pressed, pCompressionDialog, [pDestinationLocation]
+	connect( pSelectDestinationLocation, &QPushButton::pressed, pCompressionDialog, [&pDestinationLocation]
 			 {
 				 pDestinationLocation->setText( QFileDialog::getExistingDirectory( nullptr, "Save to:", QDir::currentPath() ) );
 			 } );
 
 	// This is fine, ->exec() stalls the application until closed so compress never falls
 	// out of scope.
-	connect( pOkButton, &QPushButton::pressed, pCompressionDialog, [pCompressionDialog, &compress]
+	connect( pOkButton, &QPushButton::pressed, pCompressionDialog, [&pCompressionDialog, &compress]
 			 {
 				 compress = true;
 				 pCompressionDialog->close();
@@ -346,6 +347,7 @@ void CMainWindow::compressVTFFile()
 
 		delete pVTF;
 	}
+#endif
 }
 
 void CMainWindow::compressVTFFolder()
