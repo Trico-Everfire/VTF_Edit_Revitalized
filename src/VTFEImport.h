@@ -9,6 +9,7 @@
 #include <QDialog>
 #include <QDoubleSpinBox>
 #include <QGridLayout>
+#include <QGroupBox>
 
 enum VTFErrorType
 {
@@ -34,6 +35,7 @@ public:
 	GeneralTab( VTFEImport *parent );
 	// General Options
 	QComboBox *pFormatCombo;
+	QComboBox *pAlphaDetectedFormatCombo;
 	QComboBox *pTypeCombo;
 	QCheckBox *pSRGBCheckbox;
 	// Resize
@@ -55,6 +57,8 @@ public:
 	QDoubleSpinBox *scaleSpinBox_;
 	QCheckBox *checkbox5_;
 #endif
+	QGroupBox *vBoxCustomMipMaps;
+	void GeneralCustomMipmaps();
 };
 
 class AdvancedTab : public QDialog

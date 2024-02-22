@@ -8,7 +8,8 @@ class VTFEImageFormat
 	vlUInt m_vHeight;
 	vlUInt m_vDepth;
 	vlUInt m_vSize;
-	VTFImageFormat m_vformat;
+	VTFImageFormat m_vFormat;
+	QMap<int, VTFEImageFormat *> m_vMipMapLevel;
 
 public:
 	~VTFEImageFormat()
@@ -24,7 +25,7 @@ public:
 		m_vWidth = width;
 		m_vHeight = height;
 		m_vDepth = depth;
-		m_vformat = format;
+		m_vFormat = format;
 	}
 
 	VTFEImageFormat( const VTFEImageFormat &VTFEIF )
@@ -33,13 +34,13 @@ public:
 		m_vHeight = VTFEIF.m_vHeight;
 		m_vDepth = VTFEIF.m_vDepth;
 		m_vSize = VTFEIF.m_vSize;
-		m_vformat = VTFEIF.m_vformat;
+		m_vFormat = VTFEIF.m_vFormat;
 		m_vImageData = VTFEIF.m_vImageData;
 	}
 
 	VTFImageFormat getFormat()
 	{
-		return m_vformat;
+		return m_vFormat;
 	}
 
 	vlUInt getWidth()

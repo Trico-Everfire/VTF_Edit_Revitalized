@@ -6,18 +6,18 @@
 #include "ImageSettingsWidget.h"
 #include "MainWindow.h"
 #include "flagsandformats.hpp"
+#include "supported_formats/TiffSupport.h"
 
 #include <QAction>
+#include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QCommandLineParser>
 #include <QDebug>
 #include <QDialogButtonBox>
-#include <QDoubleSpinBox>
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QLabel>
-#include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QTabWidget>
@@ -62,6 +62,7 @@ VTFEImport::VTFEImport( QWidget *pParent, const QStringList &filePaths, bool &ha
 	InitializeWidgets();
 
 	pGeneralTab->pFormatCombo->setCurrentIndex( pGeneralTab->pFormatCombo->findData( imageList[0]->getFormat() ) );
+	pGeneralTab->pAlphaDetectedFormatCombo->setCurrentIndex( pGeneralTab->pAlphaDetectedFormatCombo->findData( imageList[0]->getFormat() ) );
 }
 
 void VTFEImport::SetDefaults()
@@ -82,9 +83,107 @@ void VTFEImport::SetDefaults()
 
 void VTFEImport::AddImage( const QString &qString )
 {
-	int x, y, n;
-
 	const char *file = qString.toUtf8().constData();
+
+	if ( qString.endsWith( ".tif" ) || qString.endsWith( ".tiff" ) )
+	{
+		//		ImageData_t data;
+		//		memset( &data, 0, sizeof( ImageData_t ) );
+		//		TiffSupport::Load_TIFF( file, &data );
+		//
+		//		//		if ( !data.bValidImageData )
+		//		//			return;
+		//
+		//		tagVTFImageFormat format = IMAGE_FORMAT_NONE;
+		//		int totalDataSize = data.nImageWidth * data.nImageHeight * data.nBitCountPerChannel * data.nCountChannels;
+		//
+		//		auto dat = std::vector<std::byte> {};
+		//		dat.resize( totalDataSize );
+		//
+		//		switch ( data.nBitCountPerChannel )
+		//		{
+		//			case 8:
+		//				format = data.bHasAlpha ? IMAGE_FORMAT_RGBA8888 : IMAGE_FORMAT_RGB888;
+		//				memcpy( dat.data(), data.pImageData, totalDataSize );
+		//				break;
+		//			case 16:
+		//				format = IMAGE_FORMAT_RGBA16161616F;
+		//				if ( !data.bHasAlpha )
+		//				{
+		//					auto tempBuff = std::vector<uint16_t> {};
+		//					// RGB16F does not exist in source, we are forced to upgrade to RGBA16F.
+		//					for ( int i = 0; i < totalDataSize; i += 3 )
+		//					{
+		//						tempBuff.push_back( data.pImageData16f[i] );
+		//						tempBuff.push_back( data.pImageData16f[i + 1] );
+		//						tempBuff.push_back( data.pImageData16f[i + 2] );
+		//						tempBuff.push_back( 65535 ); // Alpha set to max.
+		//					}
+		//					memcpy( dat.data(), tempBuff.data(), totalDataSize );
+		//				}
+		//				else
+		//				{
+		//					memcpy( dat.data(), data.pImageData16f, totalDataSize );
+		//				}
+		//				break;
+		//			case 32:
+		//				format = data.bHasAlpha ? IMAGE_FORMAT_RGBA32323232F : IMAGE_FORMAT_RGB323232F;
+		//				memcpy( dat.data(), data.pImageData32f, totalDataSize );
+		//				break;
+		//			default:
+		//				return;
+		//		}
+
+		TIFFFile tiffFIle;
+
+		bool success = TiffSupport::Load_TIFF( file, tiffFIle );
+
+		if ( !success || !tiffFIle.isValid )
+			return;
+
+		tagVTFImageFormat format = IMAGE_FORMAT_NONE;
+		switch ( tiffFIle.type )
+		{
+			case 8:
+				format = tiffFIle.hasAlpha ? IMAGE_FORMAT_RGBA8888 : IMAGE_FORMAT_RGB888;
+				break;
+			case 16:
+				format = IMAGE_FORMAT_RGBA16161616F;
+				//				{
+				//					std::vector<short> tempSHRTData;
+				//					std::vector<short> tempSHRTAlphaData {};
+				//					//					tempSHRTData.resize( tiffFIle.imageData.size() );
+				//					int newsize = tiffFIle.imageData.size() * 1.3;
+				//					//					tempSHRTAlphaData.resize( newsize );
+				//
+				//					memcpy( tempSHRTData.data(), tiffFIle.imageData.data(), tiffFIle.imageData.size() );
+				//
+				//					for ( auto it = tempSHRTData.begin(); it != tempSHRTData.end(); it += 3 )
+				//					{
+				//						tempSHRTAlphaData.push_back( 32767 );
+				//						tempSHRTAlphaData.push_back( 32767 );
+				//						tempSHRTAlphaData.push_back( 32767 );
+				//						tempSHRTAlphaData.push_back( 32767 );
+				//					}
+				//
+				//					tiffFIle.imageData = std::vector<std::byte>();
+				//					tiffFIle.imageData.resize( newsize );
+				//					memcpy( tiffFIle.imageData.data(), tempSHRTAlphaData.data(), newsize );
+				//				}
+				break;
+			case 32:
+				format = tiffFIle.hasAlpha ? IMAGE_FORMAT_RGBA32323232F : IMAGE_FORMAT_RGB323232F;
+				break;
+			default:
+				return;
+		}
+
+		imageList[imageList.size()] = new VTFEImageFormat(
+			reinterpret_cast<vlByte *>( tiffFIle.imageData.data() ), tiffFIle.width, tiffFIle.height, 0, format );
+		return;
+	}
+
+	int x, y, n;
 
 	if ( !stbi_is_hdr( file ) )
 	{
@@ -126,7 +225,7 @@ VTFLib::CVTFFile *VTFEImport::GenerateVTF( VTFErrorType &err )
 
 	auto vFile = new VTFLib::CVTFFile;
 
-	VTFCreateOptions.ImageFormat = static_cast<tagVTFImageFormat>( pGeneralTab->pFormatCombo->currentData().toInt() );
+	VTFCreateOptions.ImageFormat = static_cast<tagVTFImageFormat>( VTFLib::CVTFFile::GetImageFormatInfo( imageList[0]->getFormat() ).uiAlphaBitsPerPixel == 0 ? pGeneralTab->pFormatCombo->currentData().toInt() : pGeneralTab->pAlphaDetectedFormatCombo->currentData().toInt() );
 	VTFCreateOptions.uiVersion[0] = 7;
 	VTFCreateOptions.uiVersion[1] = pAdvancedTab->pVtfVersionBox->currentData().toInt();
 	VTFCreateOptions.bResize = ( pGeneralTab->pResizeMethodCombo->isEnabled() && pGeneralTab->pResizeCheckbox->isChecked() );
@@ -529,6 +628,8 @@ VTFEImport *VTFEImport::FromVTF( QWidget *pParent, VTFLib::CVTFFile *pFile )
 	vVTFImport->pGeneralTab->pTypeCombo->currentTextChanged( QString::number( type ) );
 	vVTFImport->pGeneralTab->pFormatCombo->setCurrentIndex(
 		vVTFImport->pGeneralTab->pFormatCombo->findData( pFile->GetFormat() ) );
+	vVTFImport->pGeneralTab->pAlphaDetectedFormatCombo->setCurrentIndex(
+		vVTFImport->pGeneralTab->pAlphaDetectedFormatCombo->findData( pFile->GetFormat() ) );
 	vlSingle r;
 	vlSingle g;
 	vlSingle b;
@@ -552,6 +653,7 @@ GeneralTab::GeneralTab( VTFEImport *parent ) :
 	GeneralOptions();
 	GeneralResize();
 	GeneralMipMaps();
+	GeneralCustomMipmaps();
 #ifdef NORMAL_GENERATION
 	GeneralNormalMap();
 #endif
@@ -571,6 +673,18 @@ void GeneralTab::GeneralOptions()
 			pFormatCombo->addItem( tr( fmt.name ), (int)fmt.format );
 	}
 	vBLayout->addWidget( pFormatCombo, 0, 1, Qt::AlignRight );
+
+	auto alphaDetectedLabel = new QLabel();
+	alphaDetectedLabel->setText( tr( "Alpha Texture Format:" ) );
+	vBLayout->addWidget( alphaDetectedLabel, 1, 0, Qt::AlignLeft );
+	pAlphaDetectedFormatCombo = new QComboBox( this );
+	for ( auto &fmt : IMAGE_FORMATS )
+	{
+		if ( VTFLib::CVTFFile::GetImageFormatInfo( fmt.format ).bIsSupported )
+			pAlphaDetectedFormatCombo->addItem( tr( fmt.name ), (int)fmt.format );
+	}
+	vBLayout->addWidget( pAlphaDetectedFormatCombo, 1, 1, Qt::AlignRight );
+
 	auto label2 = new QLabel();
 	label2->setText( tr( "Texture Type:" ) );
 	pTypeCombo = new QComboBox( this );
@@ -594,10 +708,10 @@ void GeneralTab::GeneralOptions()
 			}
 		} );
 
-	vBLayout->addWidget( label2, 1, 0, Qt::AlignLeft );
-	vBLayout->addWidget( pTypeCombo, 1, 1, Qt::AlignRight );
+	vBLayout->addWidget( label2, 2, 0, Qt::AlignLeft );
+	vBLayout->addWidget( pTypeCombo, 2, 1, Qt::AlignRight );
 	pSRGBCheckbox = new QCheckBox( "sRGB Color Space", this );
-	vBLayout->addWidget( pSRGBCheckbox, 2, 0, 1, 2, Qt::AlignLeft );
+	vBLayout->addWidget( pSRGBCheckbox, 3, 0, 1, 2, Qt::AlignLeft );
 	pMainLayout->addWidget( vBoxGeneralOptions, 0, 0 );
 }
 
@@ -745,15 +859,58 @@ void GeneralTab::GeneralMipMaps()
 		{
 			label1->setDisabled( !checked );
 			pMipmapFilterCombo->setDisabled( !checked );
+			vBoxCustomMipMaps->setDisabled( checked );
 		} );
 
 	pMainLayout->addWidget( vBoxMipMaps, 0, 1 );
 }
+
+void GeneralTab::GeneralCustomMipmaps()
+{
+	vBoxCustomMipMaps = new QGroupBox( tr( "Custom mipmaps" ), this );
+	auto vBLayout = new QGridLayout( vBoxCustomMipMaps );
+
+	auto pScrollArea = new QScrollArea( vBoxCustomMipMaps );
+	auto pMipMapDialogLayout = new QVBoxLayout();
+
+	auto parent = dynamic_cast<VTFEImport *>( this->parent() );
+
+	vlUInt maxCubemaps = VTFLib::CVTFFile::ComputeMipmapCount( parent->imageList[0]->getWidth(), parent->imageList[0]->getHeight(), 1 );
+
+	auto pFrameBox = new QSpinBox( pScrollArea );
+	pFrameBox->setPrefix( "Frame: " );
+	vBLayout->addWidget( pFrameBox, 0, 0 );
+	auto pFaceBox = new QSpinBox( pScrollArea );
+	pFaceBox->setPrefix( "Face: " );
+	vBLayout->addWidget( pFaceBox, 0, 1 );
+	auto pSliceBox = new QSpinBox( pScrollArea );
+	pSliceBox->setPrefix( "Slice: " );
+	vBLayout->addWidget( pSliceBox, 0, 2 );
+
+	for ( int i = 1; i < maxCubemaps; i++ )
+	{
+		vlUInt uiMipWidth, uiMipHeight, uiMipDepth;
+		VTFLib::CVTFFile::ComputeMipmapDimensions( parent->imageList[0]->getWidth(), parent->imageList[0]->getHeight(), 1, i, uiMipWidth, uiMipHeight, uiMipDepth );
+		auto mipMapButton = new QPushButton( QApplication::style()->standardIcon( QStyle::SP_FileIcon ), QString::number( uiMipWidth ) + " X " + QString::number( uiMipHeight ) );
+
+		connect( mipMapButton, &QPushButton::clicked, this, []() {
+
+		} );
+
+		pMipMapDialogLayout->addWidget( mipMapButton, Qt::AlignRight );
+	}
+
+	pScrollArea->setLayout( pMipMapDialogLayout );
+	vBLayout->addWidget( pScrollArea, 1, 0, 1, 3 );
+
+	pMainLayout->addWidget( vBoxCustomMipMaps, 1, 1 );
+}
+
 #ifdef NORMAL_GENERATION
 void GeneralTab::GeneralNormalMap()
 {
-	auto vBoxMipMaps = new QGroupBox( tr( "Normal Map" ), this );
-	auto vBLayout = new QGridLayout( vBoxMipMaps );
+	auto vBoxCustomMipMaps = new QGroupBox( tr( "Normal Map" ), this );
+	auto vBLayout = new QGridLayout( vBoxCustomMipMaps );
 	generateNormalMapCheckbox_ = new QCheckBox( this );
 	generateNormalMapCheckbox_->setText( tr( "Generate Normal Map" ) );
 	vBLayout->addWidget( generateNormalMapCheckbox_, 0, 0, Qt::AlignLeft );
@@ -830,7 +987,7 @@ void GeneralTab::GeneralNormalMap()
 			label4->setDisabled( !checked );
 		} );
 
-	vMainLayout->addWidget( vBoxMipMaps, 1, 1 );
+	vMainLayout->addWidget( vBoxCustomMipMaps, 1, 1 );
 }
 #endif
 AdvancedTab::AdvancedTab( VTFEImport *parent ) :

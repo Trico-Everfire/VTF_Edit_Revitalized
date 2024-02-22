@@ -54,6 +54,7 @@ namespace ui
 		QAction *blueBox;
 		QAction *alphaBox;
 		void ImageToVTF();
+		void compressVTFFolder();
 	};
 
 	class ZoomScrollArea : public QScrollArea
