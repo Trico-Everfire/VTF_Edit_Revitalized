@@ -94,8 +94,8 @@ static inline constexpr struct
 	{ IMAGE_FORMAT_NV_NULL, "NV_NULL" },
 	{ IMAGE_FORMAT_ATI2N, "ATI2N" },
 	{ IMAGE_FORMAT_ATI1N, "ATI1N" },
-	{ IMAGE_FORMAT_ATI2N_OLD, "ATI2N Old" },
-	{ IMAGE_FORMAT_ATI1N_OLD, "ATI1N Old" },
+	//	{ IMAGE_FORMAT_ATI2N_OLD, "ATI2N Old" },
+	//	{ IMAGE_FORMAT_ATI1N_OLD, "ATI1N Old" },
 };
 
 static inline constexpr const char *FILE_FIELDS[] = { "Size", "Version", "Compression Level" };
