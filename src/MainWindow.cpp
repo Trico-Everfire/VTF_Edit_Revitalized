@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 
+#include "Options.h"
 #include "VTFEImport.h"
 
 #include <QApplication>
@@ -10,6 +11,7 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QScrollBar>
 #include <QStyle>
 
 using namespace ui;
@@ -28,14 +30,14 @@ CMainWindow::CMainWindow( QWidget *pParent ) :
 
 	pMainLayout->addWidget( pImageTabWidget, 0, 1, Qt::AlignTop );
 
-	auto scrollWidget = new ZoomScrollArea( this );
+	scrollWidget = new ZoomScrollArea( this );
 
-	pImageViewWidget = new ImageViewWidget( this );
+	pImageViewWidget = new ImageViewWidget();
 
 	scrollWidget->setWidget( pImageViewWidget );
 	scrollWidget->setMinimumSize( 512, 512 );
 
-	pMainLayout->addWidget( scrollWidget, 1, 1, Qt::AlignTop );
+	pMainLayout->addWidget( scrollWidget, 1, 1 );
 
 	pImageSettingsWidget = new ImageSettingsWidget( pImageViewWidget, this );
 	pMainLayout->addWidget( pImageSettingsWidget, 0, 0, 2, 1, Qt::AlignLeft );
@@ -139,10 +141,17 @@ void CMainWindow::tabChanged( int index )
 
 	pImageViewWidget->set_vtf( pVTF );
 	pImageViewWidget->set_rgba( redBox->isChecked(), greenBox->isChecked(), blueBox->isChecked(), alphaBox->isChecked() );
+	pImageViewWidget->stopAnimating();
 	pResourceWidget->set_vtf( pVTF );
 	pImageSettingsWidget->set_vtf( pVTF );
 	pImageSettingsWidget->set_vtf( pVTF );
 	pImageInfo->update_info( pVTF );
+
+	if ( pVTF )
+	{
+		scrollWidget->verticalScrollBar()->setSliderPosition( pVTF->GetHeight() / 2 );
+		scrollWidget->horizontalScrollBar()->setSliderPosition( pVTF->GetWidth() / 2 );
+	}
 }
 
 void CMainWindow::setupMenuBar()
@@ -196,11 +205,18 @@ QAction *CMainWindow::createCheckableAction( const QString &name, QObject *paren
 void CMainWindow::compressVTFFile()
 {
 #ifdef COMPRESSVTF
+	auto recentPaths = Options::get<QStringList>( STR_OPEN_RECENT );
+
 	QStringList filePaths = QFileDialog::getOpenFileNames(
-		this, "Open VTF", QDir::currentPath(), "*.vtf", nullptr, QFileDialog::Option::DontUseNativeDialog );
+		this, "Open VTF", recentPaths.last(), "*.vtf", nullptr, QFileDialog::Option::DontUseNativeDialog );
 
 	if ( filePaths.isEmpty() )
 		return;
+
+	if ( recentPaths.contains( filePaths[0] ) )
+		recentPaths.removeAt( recentPaths.indexOf( filePaths[0] ) );
+	recentPaths.push_back( filePaths[0] );
+	Options::set( STR_OPEN_RECENT, recentPaths );
 
 	auto pCompressionDialog = new QDialog( this );
 	pCompressionDialog->setWindowTitle( "VTF Version Editor" );
@@ -288,9 +304,9 @@ void CMainWindow::compressVTFFile()
 				 pSelectDestinationLocation->setEnabled( checked );
 			 } );
 
-	connect( pSelectDestinationLocation, &QPushButton::pressed, pCompressionDialog, [&pDestinationLocation]
+	connect( pSelectDestinationLocation, &QPushButton::pressed, pCompressionDialog, [&pDestinationLocation, &recentPaths]
 			 {
-				 pDestinationLocation->setText( QFileDialog::getExistingDirectory( nullptr, "Save to:", QDir::currentPath() ) );
+				 pDestinationLocation->setText( QFileDialog::getExistingDirectory( nullptr, "Save to:", recentPaths.last() ) );
 			 } );
 
 	// This is fine, ->exec() stalls the application until closed so compress never falls
@@ -307,6 +323,11 @@ void CMainWindow::compressVTFFile()
 
 	if ( !compress )
 		return;
+
+	if ( recentPaths.contains( pDestinationLocation->text() ) )
+		recentPaths.removeAt( recentPaths.indexOf( pDestinationLocation->text() ) );
+	recentPaths.push_back( pDestinationLocation->text() );
+	Options::set( STR_OPEN_RECENT, recentPaths );
 
 	QString pathDirectory {};
 	if ( pCustomDestination->isChecked() )
@@ -352,11 +373,19 @@ void CMainWindow::compressVTFFile()
 
 void CMainWindow::compressVTFFolder()
 {
+#ifdef COMPRESSVTF
+
+	auto recentPaths = Options::get<QStringList>( STR_OPEN_RECENT );
 	QString dirPath = QFileDialog::getExistingDirectory(
-		this, "Open VTF", QDir::currentPath(), QFileDialog::Option::DontUseNativeDialog );
+		this, "Open VTF", recentPaths.last(), QFileDialog::Option::DontUseNativeDialog );
 
 	if ( dirPath.isEmpty() )
 		return;
+
+	if ( recentPaths.contains( dirPath ) )
+		recentPaths.removeAt( recentPaths.indexOf( dirPath ) );
+	recentPaths.push_back( dirPath );
+	Options::set( STR_OPEN_RECENT, recentPaths );
 
 	auto pCompressionDialog = new QDialog( this );
 	pCompressionDialog->setWindowTitle( "VTF Version Editor" );
@@ -444,9 +473,9 @@ void CMainWindow::compressVTFFolder()
 				 pSelectDestinationLocation->setEnabled( checked );
 			 } );
 
-	connect( pSelectDestinationLocation, &QPushButton::pressed, pCompressionDialog, [pDestinationLocation]
+	connect( pSelectDestinationLocation, &QPushButton::pressed, pCompressionDialog, [pDestinationLocation, &recentPaths]
 			 {
-				 pDestinationLocation->setText( QFileDialog::getExistingDirectory( nullptr, "Save to:", QDir::currentPath() ) );
+				 pDestinationLocation->setText( QFileDialog::getExistingDirectory( nullptr, "Save to:", recentPaths.last() ) );
 			 } );
 
 	// This is fine, ->exec() stalls the application until closed so compress never falls
@@ -463,6 +492,11 @@ void CMainWindow::compressVTFFolder()
 
 	if ( !compress )
 		return;
+
+	if ( recentPaths.contains( pDestinationLocation->text() ) )
+		recentPaths.removeAt( recentPaths.indexOf( pDestinationLocation->text() ) );
+	recentPaths.push_back( pDestinationLocation->text() );
+	Options::set( STR_OPEN_RECENT, recentPaths );
 
 	QString pathDirectory {};
 	if ( pCustomDestination->isChecked() )
@@ -535,6 +569,7 @@ void CMainWindow::compressVTFFolder()
 		}
 		delete pVTF;
 	}
+#endif
 }
 
 void CMainWindow::ImageToVTF()
@@ -543,9 +578,19 @@ void CMainWindow::ImageToVTF()
 
 void CMainWindow::importFromFile()
 {
+	auto recentPaths = Options::get<QStringList>( STR_OPEN_RECENT );
+
 	QStringList filePaths = QFileDialog::getOpenFileNames(
-		this, "Open", "./", "*.bmp *.gif *.tif *.tiff *.jpg *.jpeg *.png *.tga *.hdr *.vtf", nullptr,
+		this, "Open", recentPaths.last(), "*.bmp *.gif *.tif *.tiff *.jpg *.jpeg *.png *.tga *.hdr *.vtf", nullptr,
 		QFileDialog::Option::DontUseNativeDialog );
+
+	if ( filePaths.isEmpty() )
+		return;
+
+	if ( recentPaths.contains( filePaths[0] ) )
+		recentPaths.removeAt( recentPaths.indexOf( filePaths[0] ) );
+	recentPaths.push_back( filePaths[0] );
+	Options::set( STR_OPEN_RECENT, recentPaths );
 
 	foreach( auto str, filePaths )
 		if ( str.endsWith( ".vtf" ) )
@@ -596,11 +641,18 @@ void CMainWindow::NewVTFFromVTF( const QString &filePath )
 
 void CMainWindow::openVTF()
 {
+	auto recentPaths = Options::get<QStringList>( STR_OPEN_RECENT );
+
 	QString filePath = QFileDialog::getOpenFileName(
-		this, "Open VTF", QDir::currentPath(), "*.vtf", nullptr, QFileDialog::Option::DontUseNativeDialog );
+		this, "Open VTF", recentPaths.last(), "*.vtf", nullptr, QFileDialog::Option::DontUseNativeDialog );
 
 	if ( filePath.isEmpty() )
 		return;
+
+	if ( recentPaths.contains( filePath ) )
+		recentPaths.removeAt( recentPaths.indexOf( filePath ) );
+	recentPaths.push_back( filePath );
+	Options::set( STR_OPEN_RECENT, recentPaths );
 
 	if ( !QFileInfo( filePath ).isReadable() )
 		return;
@@ -683,13 +735,20 @@ void CMainWindow::exportVTFToFile()
 		type = 2;
 	}
 
+	auto recentPaths = Options::get<QStringList>( STR_OPEN_RECENT );
+
 	QString filePath = QFileDialog::getSaveFileName(
 		this, fImageAmount > 1 ? "Export to *" : "Export to _x*",
-		QDir::currentPath(), "*.bmp *.gif *.jpg *.jpeg *.png *.tga", nullptr,
+		recentPaths.last(), "*.bmp *.gif *.jpg *.jpeg *.png *.tga", nullptr,
 		QFileDialog::Option::DontUseNativeDialog );
 
 	if ( filePath.isEmpty() )
 		return;
+
+	if ( recentPaths.contains( filePath ) )
+		recentPaths.removeAt( recentPaths.indexOf( filePath ) );
+	recentPaths.push_back( filePath );
+	Options::set( STR_OPEN_RECENT, recentPaths );
 
 	for ( int i = 0; i < fImageAmount; i++ )
 	{
@@ -707,8 +766,8 @@ void CMainWindow::exportVTFToFile()
 		if ( fImageAmount > 1 )
 		{
 			QString nummedPath =
-				filePath.mid( 0, filePath.count() - 4 ) + "_" + QString::number( i ) +
-				filePath.mid( filePath.count() - 4, filePath.count() );
+				filePath.mid( 0, filePath.length() - 4 ) + "_" + QString::number( i ) +
+				filePath.mid( filePath.length() - 4, filePath.length() );
 
 			if ( !img.save( nummedPath ) )
 				QMessageBox::warning( this, "Failed to save image", "Failed to save: " + nummedPath, QMessageBox::Ok );
@@ -730,13 +789,20 @@ void CMainWindow::saveVTFToFile()
 	if ( !pVTF )
 		return;
 
+	auto recentPaths = Options::get<QStringList>( STR_OPEN_RECENT );
+
 	QString filePath = QFileDialog::getSaveFileName(
 		this, "Save VTF",
-		QDir::currentPath(), "*.vtf", nullptr,
+		recentPaths.last(), "*.vtf", nullptr,
 		QFileDialog::Option::DontUseNativeDialog );
 
 	if ( filePath.isEmpty() )
 		return;
+
+	if ( recentPaths.contains( filePath ) )
+		recentPaths.removeAt( recentPaths.indexOf( filePath ) );
+	recentPaths.push_back( filePath );
+	Options::set( STR_OPEN_RECENT, recentPaths );
 
 	if ( !filePath.endsWith( ".vtf" ) )
 		filePath.append( ".vtf" );

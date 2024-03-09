@@ -13,6 +13,8 @@
 namespace ui
 {
 
+	class ZoomScrollArea;
+
 	class CMainWindow : public QDialog
 	{
 		Q_OBJECT
@@ -33,6 +35,7 @@ namespace ui
 		InfoWidget *pImageInfo;
 		QTabBar *pImageTabWidget;
 		QMenuBar *m_pMainMenuBar;
+		ZoomScrollArea *scrollWidget;
 		static VTFLib::CVTFFile *getVTFFromVTFFile( const char *path );
 		void addVTFFromPathToTab( const QString &path );
 		void removeVTFTab( int index );

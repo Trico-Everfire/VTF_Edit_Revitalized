@@ -5,6 +5,7 @@
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QLabel>
+#include <QPushButton>
 #include <QScrollArea>
 
 ImageSettingsWidget::ImageSettingsWidget( ImageViewWidget *viewer, QWidget *parent ) :
@@ -64,6 +65,35 @@ void ImageSettingsWidget::setup_ui( ImageViewWidget *viewer )
 		} );
 	layout->addWidget( startFrame_, row, 1 );
 	layout->addWidget( new QLabel( "Start Frame:" ), row, 0 );
+	++row;
+	QSpinBox *frameBox = new QSpinBox( this );
+	frameBox->setMinimum( 1 );
+	frameBox->setValue( 24 );
+	frameBox->setMaximum( 144 ); // I don't think you can even run Source even supports 144
+	layout->addWidget( frameBox, row, 1 );
+	layout->addWidget( new QLabel( "Animation FPS:" ), row, 0 );
+	++row;
+
+	animateButton = new QPushButton( "Animate", this );
+
+	connect( animateButton, &QPushButton::pressed, this, [&, viewer, frameBox]
+			 {
+				 if ( !file_ )
+					 return;
+
+				 if ( animateButton->text() == "Animate" )
+				 {
+					 viewer->startAnimation( frameBox->value() );
+					 animateButton->setText( "Stop" );
+				 }
+				 else
+				 {
+					 viewer->stopAnimating();
+					 animateButton->setText( "Animate" );
+				 }
+			 } );
+
+	layout->addWidget( animateButton, row, 1 );
 
 	// Flags list box
 	++row;
@@ -115,6 +145,8 @@ void ImageSettingsWidget::set_vtf( VTFLib::CVTFFile *file )
 			check.second->setCheckable( false );
 		}
 		settingFile_ = false;
+		file_ = nullptr;
+		animateButton->setText( "Animate" );
 		return;
 	}
 

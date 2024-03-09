@@ -1,10 +1,12 @@
 #include "dialogs/VTFEdit.h"
 #include "libs/VPKTools/include/vpktool/VPK.h"
 #include "src/MainWindow.h"
+#include "src/Options.h"
 
 #include <QApplication>
 #include <QCommonStyle>
 #include <QDebug>
+#include <QDir>
 #include <QIcon>
 #include <QStyleFactory>
 
@@ -39,10 +41,34 @@ int main( int argc, char **argv )
 
 	QApplication::setPalette( palette );
 
+	std::unique_ptr<QSettings> options;
+	if ( Options::isStandalone() )
+	{
+		auto configPath = QApplication::applicationDirPath() + "/config.ini";
+		options = std::make_unique<QSettings>( configPath, QSettings::Format::IniFormat );
+	}
+	else
+	{
+		options = std::make_unique<QSettings>();
+	}
+
+	if ( options->value( STR_OPEN_RECENT ).value<QStringList>().isEmpty() )
+		options->setValue( STR_OPEN_RECENT, QStringList() << QDir::currentPath() );
+
+	Options::setupOptions( *options );
+
 	auto pVTFEdit = new ui::CMainWindow( nullptr );
 	pVTFEdit->processCLIArguments( argc, argv );
 	pVTFEdit->setAttribute( Qt::WA_DeleteOnClose );
-	pVTFEdit->show();
+
+	if ( !Options::get<bool>( OPT_START_MAXIMIZED ) )
+	{
+		pVTFEdit->show();
+	}
+	else
+	{
+		pVTFEdit->showMaximized();
+	}
 
 	QApplication::setWindowIcon( QIcon( "vtf_edit_revitalised2.png" ).pixmap( 1080, 1080 ) );
 	return QApplication::exec();

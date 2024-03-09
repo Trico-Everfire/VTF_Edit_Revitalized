@@ -31,6 +31,10 @@ if (NORMAL_GENERATION)
     add_definitions(-DNORMAL_GENERATION)
 endif ()
 
+if (COMPRESSVTF)
+    add_definitions(-DCOMPRESSVTF)
+endif ()
+
 # MT/MTd specification for Windows
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
@@ -70,13 +74,11 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(OpenGL REQUIRED)
-find_package(GLUT REQUIRED)
-find_package(Imath CONFIG)
-find_package(OpenEXR CONFIG REQUIRED)
+#find_package(Imath CONFIG)
+#find_package(OpenEXR CONFIG REQUIRED)
 
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Core Gui OpenGL)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Core Gui OpenGL OpenGLWidgets)
 
 set(SRC
         main.cpp
@@ -111,23 +113,26 @@ set(SRC
 
         src/MainWindow.cpp src/MainWindow.h
         src/supported_formats/TiffSupport.cpp
-        src/supported_formats/TiffSupport.h)
+        src/supported_formats/TiffSupport.h
+        src/Options.cpp)
 
 add_subdirectory(libs/VTFLib)
 add_subdirectory(libs/fmt)
 #add_subdirectory(libs/QColorWheel)
 add_subdirectory(libs/SpeedyKV)
 
-add_executable(${PROJECT_NAME} ${SRC})
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Core Qt6::Gui vtflib fmt::fmt keyvalues)
+add_executable(${PROJECT_NAME} ${SRC} src/res/res.qrc)
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Core Qt6::Gui Qt::OpenGLWidgets OpenGL::GLU vtflib fmt::fmt keyvalues)
 
-target_include_directories(${PROJECT_NAME} PRIVATE "${QT_INCLUDE} ${QT_INCLUDE}/QtWidgets" "${QT_INCLUDE}/QtGui" "${QT_INCLUDE}/QtCore" ${QT_INCLUDE}/QtOpenGL ${OPENGL_LIBRARIES} ${GLUT_LIBRARY} OpenEXR::OpenEXR Imath::Imath Imath::Half)
+target_include_directories(${PROJECT_NAME} PRIVATE "${QT_INCLUDE} ${QT_INCLUDE}/QtWidgets" "${QT_INCLUDE}/QtGui" "${QT_INCLUDE}/QtCore" "${QT_INCLUDE}/QtOpenGLWidgets" ${QT_INCLUDE}/QtOpenGL ${OPENGL_glu_LIBRARY} ${OPENGL_LIBRARIES} ${GLUT_LIBRARY} OpenEXR::OpenEXR Imath::Imath Imath::Half)
 
 if (WIN32)
     # Copy these to bundle them with the program in releases
     configure_file("${QT_BASEDIR}/bin/Qt6Core.dll" "${CMAKE_BINARY_DIR}/Qt6Core.dll" COPYONLY)
     configure_file("${QT_BASEDIR}/bin/Qt6Gui.dll" "${CMAKE_BINARY_DIR}/Qt6Gui.dll" COPYONLY)
     configure_file("${QT_BASEDIR}/bin/Qt6Widgets.dll" "${CMAKE_BINARY_DIR}/Qt6Widgets.dll" COPYONLY)
+    configure_file("${QT_BASEDIR}/lib/libQt6OpenGL.so.6" "${CMAKE_BINARY_DIR}/libQt6OpenGL.so.6" COPYONLY)
+    configure_file("${QT_BASEDIR}/bin/Qt6OpenGLWidgets.dll" "${CMAKE_BINARY_DIR}/Qt6OpenGLWidgets.dll" COPYONLY)
     configure_file("${QT_BASEDIR}/plugins/platforms/qwindows.dll" "${CMAKE_BINARY_DIR}/platforms/qwindows.dll" COPYONLY)
     configure_file("${QT_BASEDIR}/plugins/platforms/qwindowsd.dll" "${CMAKE_BINARY_DIR}/platforms/qwindowsd.dll" COPYONLY)
     #We only ever need to ship the debug binaries in debug mode.
@@ -138,9 +143,10 @@ if (WIN32)
         configure_file("${QT_BASEDIR}/plugins/platforms/qwindowsd.dll" "${CMAKE_BINARY_DIR}/platforms/qwindowsd.dll" COPYONLY)
     ENDIF (CMAKE_BUILD_TYPE MATCHES Debug)
 elseif (UNIX)
-    configure_file("${QT_BASEDIR}/lib/libQt6Core.so.6.5.3" "${CMAKE_BINARY_DIR}/libQt6Core.so.5" COPYONLY)
-    configure_file("${QT_BASEDIR}/lib/libQt6Gui.so.6.5.3" "${CMAKE_BINARY_DIR}/libQt6Gui.so.5" COPYONLY)
-    configure_file("${QT_BASEDIR}/lib/libQt6Widgets.so.6.5.3" "${CMAKE_BINARY_DIR}/libQt6Widgets.so.5" COPYONLY)
+    configure_file("${QT_BASEDIR}/lib/libQt6Core.so.6.5.3" "${CMAKE_BINARY_DIR}/libQt6Core.so.6" COPYONLY)
+    configure_file("${QT_BASEDIR}/lib/libQt6Gui.so.6.5.3" "${CMAKE_BINARY_DIR}/libQt6Gui.so.6" COPYONLY)
+    configure_file("${QT_BASEDIR}/lib/libQt6Widgets.so.6.5.3" "${CMAKE_BINARY_DIR}/libQt6Widgets.so.6" COPYONLY)
+    configure_file("${QT_BASEDIR}/lib/libQt6OpenGLWidgets.so.6" "${CMAKE_BINARY_DIR}/libQt6OpenGLWidgets.so.6" COPYONLY)
     configure_file("${QT_BASEDIR}/lib/libicui18n.so.56" "${CMAKE_BINARY_DIR}/libicui18n.so.56" COPYONLY)
     configure_file("${QT_BASEDIR}/lib/libicuuc.so.56" "${CMAKE_BINARY_DIR}/libicuuc.so.56" COPYONLY)
     configure_file("${QT_BASEDIR}/lib/libicudata.so.56" "${CMAKE_BINARY_DIR}/libicudata.so.56" COPYONLY)

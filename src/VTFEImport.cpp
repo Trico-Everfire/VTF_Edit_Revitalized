@@ -504,8 +504,8 @@ void VTFEImport::InitializeWidgets()
 			auto vRLayout = new QGridLayout( dialog );
 
 			auto scrollArea = new ui::ZoomScrollArea( dialog );
-			auto vIVW = new ImageViewWidget( scrollArea );
-			scrollArea->setWidget( vIVW );
+			auto vIVW = new ImageViewWidget();
+			//			scrollArea->setWidget( vIVW );
 			auto vISW = new ImageSettingsWidget( vIVW, dialog );
 			vRLayout->addWidget( vISW, 0, 0 );
 			vRLayout->addWidget( scrollArea, 0, 1, Qt::AlignCenter );

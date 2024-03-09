@@ -5,6 +5,8 @@
 #include <QSpinBox>
 #include <QWidget>
 
+class QPushButton;
+
 class ImageSettingsWidget : public QWidget
 {
 	Q_OBJECT;
@@ -28,6 +30,7 @@ private:
 	QSpinBox *face_ = nullptr;
 	QSpinBox *mip_ = nullptr;
 	QSpinBox *startFrame_ = nullptr;
+	QPushButton *animateButton;
 	VTFLib::CVTFFile *file_ = nullptr;
 	std::unordered_map<uint32_t, QCheckBox *> flagChecks_;
 	bool settingFile_ = false;
