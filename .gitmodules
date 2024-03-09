@@ -7,7 +7,7 @@
 [submodule "libs/VTFLib"]
 	path = libs/VTFLib
 	url = https://github.com/Trico-Everfire/VTFLib.git
-	branch = feat/ATI-Difference-Support
+	branch = feat/floating_point_support
 [submodule "libs/SpeedyKV"]
 	path = libs/SpeedyKV
 	url = https://github.com/ozxybox/SpeedyKeyV.git
