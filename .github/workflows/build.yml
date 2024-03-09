@@ -3,6 +3,13 @@ on:
   push:
     branches: [ master, rework ]
   workflow_dispatch: # nothing here
+
+
+env:
+  BUILD_DIR: '${{github.workspace}}/build'
+  QT_VERSION: '6.5.3'
+  QT_MODULES: 'qtimageformats'
+
 jobs:
   build-linux:
     strategy:
@@ -17,12 +24,15 @@ jobs:
         run: git submodule update --init --recursive
 
       - name: Install Qt
-        uses: jurplel/install-qt-action@v2
+        uses: jurplel/install-qt-action@v3
         with:
-          version: 6.5.3
+          aqtversion: '==3.1.*'
+          version: ${{env.QT_VERSION}}
           host: linux
           target: desktop
+          modules: ${{env.QT_MODULES}}
           dir: '${{github.workspace}}/libs/Qt'
+          cache: true
 
       - name: Configure CMake
         run: cmake -G "Unix Makefiles" -B build -DCHAOS_INITIATIVE=ON -DCOMPRESSVTF=ON -DCMAKE_BUILD_TYPE=${{matrix.build_type}} -DQT_BASEDIR='${{github.workspace}}/libs/Qt/Qt/6.5.3/gcc_64'
@@ -60,10 +70,13 @@ jobs:
       - name: Install Qt6
         uses: jurplel/install-qt-action@v2
         with:
+          aqtversion: '==3.1.*'
           dir: '${{github.workspace}}/libs/Qt'
-
-          version: 6.5.3
+          version: ${{env.QT_VERSION}}
           arch: win64_msvc2019_64
+          modules: ${{env.QT_MODULES}}
+          cache: true
+
 
       - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
