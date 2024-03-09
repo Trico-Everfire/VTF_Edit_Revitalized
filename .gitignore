@@ -2,4 +2,7 @@
 build/
 .idea/
 _private/
+*/openexr/
+ATI_test/
+*.vtf
 test*.*
