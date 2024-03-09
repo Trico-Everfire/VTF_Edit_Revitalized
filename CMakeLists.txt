@@ -122,7 +122,7 @@ add_subdirectory(libs/fmt)
 add_subdirectory(libs/SpeedyKV)
 
 add_executable(${PROJECT_NAME} ${SRC} src/res/res.qrc)
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Core Qt6::Gui Qt::OpenGLWidgets OpenGL::GLU vtflib fmt::fmt keyvalues)
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Core Qt6::Gui Qt::OpenGLWidgets vtflib fmt::fmt keyvalues)
 
 target_include_directories(${PROJECT_NAME} PRIVATE "${QT_INCLUDE} ${QT_INCLUDE}/QtWidgets" "${QT_INCLUDE}/QtGui" "${QT_INCLUDE}/QtCore" "${QT_INCLUDE}/QtOpenGLWidgets" ${QT_INCLUDE}/QtOpenGL ${OPENGL_glu_LIBRARY} ${OPENGL_LIBRARIES} ${GLUT_LIBRARY} OpenEXR::OpenEXR Imath::Imath Imath::Half)
 
