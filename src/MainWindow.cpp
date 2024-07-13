@@ -1230,7 +1230,7 @@ void CMainWindow::saveVTFToFile()
 
 	QString filePath = QFileDialog::getSaveFileName(
 		this, "Save VTF",
-		recentPaths.last(), "*.vtf", nullptr,
+		QFileInfo( recentPaths.last() ).completeBaseName(), "*.vtf", nullptr,
 		QFileDialog::Option::DontUseNativeDialog );
 
 	if ( filePath.isEmpty() )
