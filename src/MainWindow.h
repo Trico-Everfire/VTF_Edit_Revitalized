@@ -74,6 +74,7 @@ namespace ui
 		void dropEvent( QDropEvent *event ) override;
 		void addFile( QString filePath );
 		void consoleParameters( int argc, char **argv );
+		bool separateSpriteSheetVTF();
 	};
 
 	class ZoomScrollArea : public QAbstractScrollArea

@@ -232,11 +232,93 @@ CMainWindow::CMainWindow() :
 	adjustSize();
 }
 
+struct SpriteSheetHeader
+{
+	uint32_t version;
+	uint32_t sequenceCount;
+};
+
+struct SpriteSheetSequence
+{
+	uint32_t sequenceNumber;
+	uint32_t clamp;
+	uint32_t frameCount;
+	float duration;
+};
+
+struct Vec4
+{
+	float x;
+	float y;
+	float z;
+	float w;
+};
+
+struct Frame
+{
+	float duration;
+	std::vector<Vec4> coords;
+};
+
+struct Sequence
+{
+	uint32_t sequenceNumber;
+	bool clamp;
+	float duration;
+	std::vector<Frame> frames;
+};
+
+bool CMainWindow::separateSpriteSheetVTF()
+{
+	const auto key = pImageTabWidget->tabData( pImageTabWidget->currentIndex() ).value<intptr_t>();
+	auto pVTF = this->vtfWidgetList.value( key );
+
+	if ( !pVTF )
+		return false;
+
+	if ( !pVTF->GetSupportsResources() )
+		return false;
+
+	if ( !pVTF->GetHasResource( VTF_RSRC_SHEET ) )
+		return false;
+
+	uint32_t size;
+	std::byte *data = reinterpret_cast<std::byte *>( pVTF->GetResourceData( VTF_RSRC_SHEET, size ) );
+	SpriteSheetHeader *header = reinterpret_cast<SpriteSheetHeader *>( data );
+
+	std::vector<Sequence> sequences;
+	int offset = sizeof( SpriteSheetHeader );
+	for ( int i = 0; i < header->sequenceCount; i++ )
+	{
+		Sequence *fullSequence = &sequences.emplace_back();
+		SpriteSheetSequence *sequence = reinterpret_cast<SpriteSheetSequence *>( data + offset );
+		fullSequence->sequenceNumber = sequence->sequenceNumber;
+		offset += sizeof( SpriteSheetHeader );
+		for ( int j = 0; j < sequence->frameCount; j++ )
+		{
+			Frame *frame = &fullSequence->frames.emplace_back();
+			frame->duration = *reinterpret_cast<float *>( data + offset );
+			offset += sizeof( float );
+			std::vector<Vec4> &coords = frame->coords;
+			for ( int k = 0; k < ( header->version == 1 ? 4 : 1 ); k++ )
+			{
+				coords.emplace_back( *reinterpret_cast<Vec4 *>( data + offset ) );
+				offset += sizeof( Vec4 );
+			}
+		}
+		fullSequence->clamp = sequence->clamp != 0;
+		fullSequence->duration = sequence->duration;
+	}
+
+	return true;
+};
+
 VTFLib::CVTFFile *CMainWindow::getVTFFromVTFFile( const char *path )
 {
 	auto vVTF = new VTFLib::CVTFFile();
 	if ( !vVTF->Load( path, false ) )
 		return nullptr;
+
 	return vVTF;
 }
 
@@ -303,6 +385,8 @@ void CMainWindow::tabChanged( int index )
 	pImageSettingsWidget->set_vtf( pVTF );
 	pImageSettingsWidget->set_vtf( pVTF );
 	pImageInfo->update_info( pVTF );
+
+	separateSpriteSheetVTF();
 
 	//		if ( pVTF )
 	//		{
