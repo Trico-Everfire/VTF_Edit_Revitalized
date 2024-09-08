@@ -187,13 +187,13 @@ void VTFEImport::AddImage( const QString &qString )
 
 	if ( !stbi_is_hdr( file ) )
 	{
-		vlByte *data = stbi_load( file, &x, &y, &n, 4 );
+		vlByte *data = stbi_load( file, &x, &y, &n, 0 );
 
 		if ( !data )
 			return;
 
 		imageList[imageList.size()] = new VTFEImageFormat(
-			data, x, y, 0, IMAGE_FORMAT_RGBA8888 );
+			data, x, y, 0, n == 4 ? IMAGE_FORMAT_RGBA8888 : IMAGE_FORMAT_RGB888 );
 
 		stbi_image_free( data );
 	}

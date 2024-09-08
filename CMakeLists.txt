@@ -84,7 +84,7 @@ set(CMAKE_AUTORCC ON)
 #find_package(OpenEXR CONFIG REQUIRED)
 
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets DBus Core Gui OpenGL OpenGLWidgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets DBus Core Network Gui OpenGL OpenGLWidgets)
 
 set(SRC
         main.cpp
@@ -139,16 +139,17 @@ add_subdirectory(libs/vpklib)
 add_subdirectory(libs/SpeedyKV)
 
 add_executable(${PROJECT_NAME} ${SRC} src/res/res.qrc)
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::DBus Qt6::Core Qt6::Gui Qt::OpenGLWidgets vtflib fmt::fmt keyvalues libvpkedit)
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Network Qt6::DBus Qt6::Core Qt6::Gui Qt::OpenGLWidgets vtflib fmt::fmt keyvalues libvpkedit)
 
-target_include_directories(${PROJECT_NAME} PRIVATE libs/vpklib/include "${QT_INCLUDE} ${QT_INCLUDE}/QtWidgets" "${QT_INCLUDE}/QtDBus" "${QT_INCLUDE}/QtGui" "${QT_INCLUDE}/QtCore" "${QT_INCLUDE}/QtOpenGLWidgets" ${QT_INCLUDE}/QtOpenGL ${OPENGL_LIBRARIES} OpenEXR::OpenEXR Imath::Imath Imath::Half)
+target_include_directories(${PROJECT_NAME} PRIVATE libs/vpklib/include "${QT_INCLUDE} ${QT_INCLUDE}/QtWidgets" "${QT_INCLUDE}/QNetwork" "${QT_INCLUDE}/QtDBus" "${QT_INCLUDE}/QtGui" "${QT_INCLUDE}/QtCore" "${QT_INCLUDE}/QtOpenGLWidgets" ${QT_INCLUDE}/QtOpenGL ${OPENGL_LIBRARIES} OpenEXR::OpenEXR Imath::Imath Imath::Half)
 
-if ( WIN32 )
+if (WIN32)
     # Copy these to bundle them with the program in releases
     configure_file("${QT_BASEDIR}/bin/opengl32sw.dll" "${CMAKE_BINARY_DIR}/opengl32sw.dll" COPYONLY)
     configure_file("${QT_BASEDIR}/bin/Qt6Core.dll" "${CMAKE_BINARY_DIR}/Qt6Core.dll" COPYONLY)
     configure_file("${QT_BASEDIR}/bin/Qt6Gui.dll" "${CMAKE_BINARY_DIR}/Qt6Gui.dll" COPYONLY)
     configure_file("${QT_BASEDIR}/bin/Qt6Widgets.dll" "${CMAKE_BINARY_DIR}/Qt6Widgets.dll" COPYONLY)
+    configure_file("${QT_BASEDIR}/bin/Qt6Widgets.dll" "${CMAKE_BINARY_DIR}/Qt6Network.dll" COPYONLY)
     configure_file("${QT_BASEDIR}/bin/Qt6OpenGL.dll" "${CMAKE_BINARY_DIR}/Qt6OpenGL.dll" COPYONLY)
     configure_file("${QT_BASEDIR}/bin/Qt6OpenGLWidgets.dll" "${CMAKE_BINARY_DIR}/Qt6OpenGLWidgets.dll" COPYONLY)
 
@@ -165,28 +166,29 @@ if ( WIN32 )
         configure_file("${QT_BASEDIR}/bin/Qt6Widgetsd.dll" "${CMAKE_BINARY_DIR}/Qt6Widgetsd.dll" COPYONLY)
         configure_file("${QT_BASEDIR}/plugins/platforms/qwindowsd.dll" "${CMAKE_BINARY_DIR}/platforms/qwindowsd.dll" COPYONLY)
     ENDIF (CMAKE_BUILD_TYPE MATCHES Debug)
-elseif ( UNIX )
-    configure_file("${QT_BASEDIR}/lib/libQt6Core.so.6"              "${CMAKE_BINARY_DIR}/libQt6Core.so.6" COPYONLY)
-    configure_file("${QT_BASEDIR}/lib/libQt6Gui.so.6"               "${CMAKE_BINARY_DIR}/libQt6Gui.so.6" COPYONLY)
-    configure_file("${QT_BASEDIR}/lib/libQt6Widgets.so.6"           "${CMAKE_BINARY_DIR}/libQt6Widgets.so.6" COPYONLY)
-    configure_file("${QT_BASEDIR}/lib/libQt6OpenGLWidgets.so.6"     "${CMAKE_BINARY_DIR}/libQt6OpenGLWidgets.so.6" COPYONLY)
-    configure_file("${QT_BASEDIR}/lib/libQt6OpenGL.so.6"            "${CMAKE_BINARY_DIR}/libQt6OpenGL.so.6" COPYONLY)
-    
-    configure_file("${QT_BASEDIR}/lib/libicui18n.so.56"             "${CMAKE_BINARY_DIR}/libicui18n.so.56" COPYONLY)
-    configure_file("${QT_BASEDIR}/lib/libicuuc.so.56"               "${CMAKE_BINARY_DIR}/libicuuc.so.56" COPYONLY)
-    configure_file("${QT_BASEDIR}/lib/libicudata.so.56"             "${CMAKE_BINARY_DIR}/libicudata.so.56" COPYONLY)
-    
-    configure_file("${QT_BASEDIR}/lib/libQt6DBus.so.6"              "${CMAKE_BINARY_DIR}/libQt6DBus.so.6" COPYONLY)
-    
-    configure_file("${QT_BASEDIR}/lib/libQt6XcbQpa.so.6"            "${CMAKE_BINARY_DIR}/libQt6XcbQpa.so.6" COPYONLY)
+elseif (UNIX)
+    configure_file("${QT_BASEDIR}/lib/libQt6Core.so.6" "${CMAKE_BINARY_DIR}/libQt6Core.so.6" COPYONLY)
+    configure_file("${QT_BASEDIR}/lib/libQt6Network.so.6" "${CMAKE_BINARY_DIR}/libQt6Network.so.6" COPYONLY)
+    configure_file("${QT_BASEDIR}/lib/libQt6Gui.so.6" "${CMAKE_BINARY_DIR}/libQt6Gui.so.6" COPYONLY)
+    configure_file("${QT_BASEDIR}/lib/libQt6Widgets.so.6" "${CMAKE_BINARY_DIR}/libQt6Widgets.so.6" COPYONLY)
+    configure_file("${QT_BASEDIR}/lib/libQt6OpenGLWidgets.so.6" "${CMAKE_BINARY_DIR}/libQt6OpenGLWidgets.so.6" COPYONLY)
+    configure_file("${QT_BASEDIR}/lib/libQt6OpenGL.so.6" "${CMAKE_BINARY_DIR}/libQt6OpenGL.so.6" COPYONLY)
+
+    configure_file("${QT_BASEDIR}/lib/libicui18n.so.73.2" "${CMAKE_BINARY_DIR}/libicui18n.so.73" COPYONLY)
+    configure_file("${QT_BASEDIR}/lib/libicuuc.so.73.2" "${CMAKE_BINARY_DIR}/libicuuc.so.73" COPYONLY)
+    configure_file("${QT_BASEDIR}/lib/libicudata.so.73.2" "${CMAKE_BINARY_DIR}/libicudata.so.73" COPYONLY)
+
+    configure_file("${QT_BASEDIR}/lib/libQt6DBus.so.6" "${CMAKE_BINARY_DIR}/libQt6DBus.so.6" COPYONLY)
+
+    configure_file("${QT_BASEDIR}/lib/libQt6XcbQpa.so.6" "${CMAKE_BINARY_DIR}/libQt6XcbQpa.so.6" COPYONLY)
 
     configure_file("${QT_BASEDIR}/plugins/imageformats/libqjpeg.so" "${CMAKE_BINARY_DIR}/imageformats/libqjpeg.so" COPYONLY)
-    configure_file("${QT_BASEDIR}/plugins/imageformats/libqtga.so"  "${CMAKE_BINARY_DIR}/imageformats/libqtga.so" COPYONLY)
+    configure_file("${QT_BASEDIR}/plugins/imageformats/libqtga.so" "${CMAKE_BINARY_DIR}/imageformats/libqtga.so" COPYONLY)
     configure_file("${QT_BASEDIR}/plugins/imageformats/libqwebp.so" "${CMAKE_BINARY_DIR}/imageformats/libqwebp.so" COPYONLY)
 
     configure_file("${QT_BASEDIR}/plugins/platforms/libqminimal.so" "${CMAKE_BINARY_DIR}/platforms/libqminimal.so" COPYONLY)
-    configure_file("${QT_BASEDIR}/plugins/platforms/libqxcb.so"     "${CMAKE_BINARY_DIR}/platforms/libqxcb.so" COPYONLY)
-    
-    file(GLOB ${PROJECT_NAME}_QT_PLUGINS_XCBGLINTEGRATIONS          "${QT_BASEDIR}/plugins/xcbglintegrations/*.so*")
-    file(COPY ${${PROJECT_NAME}_QT_PLUGINS_XCBGLINTEGRATIONS}       DESTINATION "${CMAKE_BINARY_DIR}/xcbglintegrations")
+    configure_file("${QT_BASEDIR}/plugins/platforms/libqxcb.so" "${CMAKE_BINARY_DIR}/platforms/libqxcb.so" COPYONLY)
+
+    file(GLOB ${PROJECT_NAME}_QT_PLUGINS_XCBGLINTEGRATIONS "${QT_BASEDIR}/plugins/xcbglintegrations/*.so*")
+    file(COPY ${${PROJECT_NAME}_QT_PLUGINS_XCBGLINTEGRATIONS} DESTINATION "${CMAKE_BINARY_DIR}/xcbglintegrations")
 endif ()

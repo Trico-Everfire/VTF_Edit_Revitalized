@@ -20,6 +20,7 @@
 #include <QPushButton>
 #include <QScrollBar>
 #include <QStyle>
+#include <QTextEdit>
 
 using namespace ui;
 
@@ -409,7 +410,7 @@ void CMainWindow::setupMenuBar()
 	auto pToolMenuTab = m_pMainMenuBar->addMenu( "Tools" );
 	pToolMenuTab->addAction( "VTF Version Editor (Individual)", this, &CMainWindow::compressVTFFile );
 	pToolMenuTab->addAction( "VTF Version Editor (Batch)", this, &CMainWindow::compressVTFFolder );
-	pToolMenuTab->addAction( "Folders to VTF", this, &CMainWindow::foldersToVTF );
+	pToolMenuTab->addAction( "Batch Convert", this, &CMainWindow::batchConvert );
 	pToolMenuTab->addAction( "FontToVTF", this, &CMainWindow::fontToVTF );
 
 	auto pViewMenu = m_pMainMenuBar->addMenu( "View" );
@@ -863,152 +864,304 @@ struct VTFFolder
 	QStringList paths {};
 };
 
-void CMainWindow::foldersToVTF()
+void CMainWindow::batchConvert()
 {
-	auto recentPaths = Options::get<QStringList>( STR_OPEN_RECENT );
+	auto batchConvertQDialog = new QDialog( this );
+	batchConvertQDialog->setWindowTitle( "Batch Convert" );
+	auto batchLayout = new QGridLayout( batchConvertQDialog );
+	auto batchOptionsGroup = new QGroupBox( "Options:", batchConvertQDialog );
+	batchOptionsGroup->setMinimumWidth( 320 );
+	auto batchOptionsLayout = new QGridLayout( batchOptionsGroup );
 
-	QString importFrom = QFileDialog::getExistingDirectory(
-		this, "Import From", recentPaths.last(),
-		QFileDialog::Option::DontUseNativeDialog );
+	auto optionsfolderInputLabel = new QLabel( "Input Folder:", batchOptionsGroup );
+	batchOptionsLayout->addWidget( optionsfolderInputLabel, 0, 0 );
+	auto optionsFolderInputLineEdit = new QLineEdit( batchOptionsGroup );
+	batchOptionsLayout->addWidget( optionsFolderInputLineEdit, 0, 1, 1, 3 );
+	auto optionsFolderInputButton = new QPushButton( "...", batchOptionsGroup );
+	optionsFolderInputButton->setFixedSize( 20, 20 );
+	batchOptionsLayout->addWidget( optionsFolderInputButton, 0, 4 );
 
-	QString exportTo = QFileDialog::getExistingDirectory(
-		this, "Export To", recentPaths.last(),
-		QFileDialog::Option::DontUseNativeDialog );
+	auto optionsfolderOutputLabel = new QLabel( "Output Folder:", batchOptionsGroup );
+	batchOptionsLayout->addWidget( optionsfolderOutputLabel, 1, 0 );
+	auto optionsFolderOutputLineEdit = new QLineEdit( batchOptionsGroup );
+	batchOptionsLayout->addWidget( optionsFolderOutputLineEdit, 1, 1, 1, 3 );
+	auto optionsFolderOutputButton = new QPushButton( "...", batchOptionsGroup );
+	optionsFolderOutputButton->setFixedSize( 20, 20 );
+	batchOptionsLayout->addWidget( optionsFolderOutputButton, 1, 4 );
 
-	if ( importFrom.isEmpty() )
-		return;
+	QString toVTFString = "*.tga";
+	QString toImageString = "*.vtf";
 
-	if ( exportTo.isEmpty() )
-		return;
+	auto toOrFrom = new QComboBox( batchOptionsGroup );
+	toOrFrom->addItem( "To VTF", true );
+	toOrFrom->addItem( "To Image", false );
+	batchOptionsLayout->addWidget( toOrFrom, 2, 0 );
 
-	if ( recentPaths.contains( importFrom ) )
-		recentPaths.removeAt( recentPaths.indexOf( importFrom ) );
-	recentPaths.push_back( importFrom );
+	auto optionsToSelectedFormat = new QComboBox( batchOptionsGroup );
+	optionsToSelectedFormat->addItem( ".tga" );
+	optionsToSelectedFormat->hide();
+	batchOptionsLayout->addWidget( optionsToSelectedFormat, 2, 1 );
 
-	if ( recentPaths.contains( exportTo ) )
-		recentPaths.removeAt( recentPaths.indexOf( exportTo ) );
-	recentPaths.push_back( exportTo );
-	Options::set( STR_OPEN_RECENT, recentPaths );
+	auto optionsToVTFLineEdit = new QLineEdit( "*.tga", batchOptionsGroup );
+	batchOptionsLayout->addWidget( optionsToVTFLineEdit, 2, 1, 1, 3 );
+
+	auto OptionsVTFConversionOptionDisplay = new QPushButton( "?", batchOptionsGroup );
+	OptionsVTFConversionOptionDisplay->setFixedSize( 20, 20 );
+	batchOptionsLayout->addWidget( OptionsVTFConversionOptionDisplay, 2, 4 );
+
+	auto optionsRecursiveCheckBox = new QCheckBox( "Recursive", batchOptionsGroup );
+	optionsRecursiveCheckBox->setChecked( true );
+	batchOptionsLayout->addWidget( optionsRecursiveCheckBox, 4, 0 );
+
+	auto optionsExportFFSCheckBox = new QCheckBox( "Export frames/faces/slices", batchOptionsGroup );
+	optionsExportFFSCheckBox->hide();
+	batchOptionsLayout->addWidget( optionsExportFFSCheckBox, 4, 1, 1, 2 );
+
+	auto optionsExportFFSDisplayButton = new QPushButton( "?", batchOptionsGroup );
+	optionsExportFFSDisplayButton->setFixedSize( 20, 20 );
+	optionsExportFFSDisplayButton->hide();
+	batchOptionsLayout->addWidget( optionsExportFFSDisplayButton, 4, 4 );
+
+	batchLayout->addWidget( batchOptionsGroup, 0, 0 );
+
+	auto progressGroup = new QGroupBox( "Progress:", batchConvertQDialog );
+	auto progressLayout = QHBoxLayout( progressGroup );
+	QProgressBar *frogressBar = new QProgressBar( this );
+	frogressBar->setMinimum( 0 );
+	frogressBar->setTextVisible( true );
+	frogressBar->setMinimumSize( 128, 20 );
+	progressLayout.addWidget( frogressBar );
+
+	batchLayout->addWidget( progressGroup, 1, 0 );
+
+	auto logGroupBox = new QGroupBox( "Log:", batchConvertQDialog );
+	auto logLayout = new QVBoxLayout( logGroupBox );
+	auto logTextBlock = new QTextEdit( logGroupBox );
+	logTextBlock->setReadOnly( true );
+	logTextBlock->setMinimumSize( 128, 100 );
+	logLayout->addWidget( logTextBlock );
+
+	batchLayout->addWidget( logGroupBox, 2, 0 );
+
+	auto buttonsLayout = new QGridLayout();
+	auto optionsButton = new QPushButton( "Options", batchConvertQDialog );
+	buttonsLayout->addWidget( optionsButton, 0, 0, Qt::AlignLeft );
+
+	auto convertCloseButtonBox = new QDialogButtonBox( batchConvertQDialog );
+	convertCloseButtonBox->addButton( "Convert", QDialogButtonBox::ApplyRole );
+	convertCloseButtonBox->addButton( "Close", QDialogButtonBox::RejectRole );
+	buttonsLayout->addWidget( convertCloseButtonBox, 0, 1, Qt::AlignRight );
+
+	batchLayout->addLayout( buttonsLayout, 3, 0 );
+
+	batchConvertQDialog->resize( 0, 0 ); // Make the window the smallest it can be.
 
 	auto pVTFImportWindow = VTFEImport::Standalone( this );
+	connect( OptionsVTFConversionOptionDisplay, &QPushButton::pressed, this, [batchConvertQDialog]
+			 {
+				 auto displayDialog = new QDialog( batchConvertQDialog );
+				 auto displayLayout = new QVBoxLayout( displayDialog );
+				 auto displayLabel = new QLabel( "having a file named `.animation.txt` inside a folder\nwill treat the entire folder's image contents\nas animation frames rather than individual VTFs.\nThis may result in the `.txt` file being invisible,\nmake sure you allow viewing hidden\nfiles in your file explorer settings.", displayDialog );
+				 auto baseFont = displayLabel->font();
+				 baseFont.setPointSize( 12 );
+				 displayLabel->setFont( baseFont );
+				 displayLayout->addWidget( displayLabel );
+				 auto displayCloseButton = new QPushButton( "Close", displayDialog );
+				 connect( displayCloseButton, &QPushButton::pressed, displayDialog, &QDialog::close );
+				 displayLayout->addWidget( displayCloseButton );
+				 displayDialog->show();
+			 } );
+	connect( optionsExportFFSDisplayButton, &QPushButton::pressed, this, [batchConvertQDialog]
+			 {
+				 auto displayDialog = new QDialog( batchConvertQDialog );
+				 auto displayLayout = new QVBoxLayout( displayDialog );
+				 auto displayLabel = new QLabel( "Exporting frames/faces/slices will suffix the exported image with _frame(X), _face(X) and/or _slice(X)\nWhere (X) will be replaced with the corresponding frame/face/slice.", displayDialog );
+				 auto baseFont = displayLabel->font();
+				 baseFont.setPointSize( 12 );
+				 displayLabel->setFont( baseFont );
+				 displayLayout->addWidget( displayLabel );
+				 auto displayCloseButton = new QPushButton( "Close", displayDialog );
+				 connect( displayCloseButton, &QPushButton::pressed, displayDialog, &QDialog::close );
+				 displayLayout->addWidget( displayCloseButton );
+				 displayDialog->show();
+			 } );
+	connect( optionsButton, &QPushButton::pressed, pVTFImportWindow, &VTFEImport::exec );
+	connect( toOrFrom, &QComboBox::currentIndexChanged, batchOptionsGroup, [toOrFrom, optionsToSelectedFormat, batchOptionsLayout, optionsToVTFLineEdit, OptionsVTFConversionOptionDisplay, optionsExportFFSDisplayButton, optionsExportFFSCheckBox, &toVTFString, &toImageString]
+			 {
+				 int curr = toOrFrom->currentData().toBool();
+				 if ( curr )
+				 {
+					 optionsToVTFLineEdit->setText( toVTFString );
+					 optionsToSelectedFormat->hide();
+					 optionsExportFFSDisplayButton->hide();
+					 optionsExportFFSCheckBox->hide();
+					 batchOptionsLayout->addWidget( optionsToVTFLineEdit, 2, 1, 1, 3 );
+					 OptionsVTFConversionOptionDisplay->show();
+				 }
+				 else
+				 {
+					 optionsToVTFLineEdit->setText( toImageString );
+					 optionsToSelectedFormat->show();
+					 optionsExportFFSDisplayButton->show();
+					 optionsExportFFSCheckBox->show();
+					 batchOptionsLayout->addWidget( optionsToVTFLineEdit, 2, 2, 1, 2 );
+					 OptionsVTFConversionOptionDisplay->hide();
+				 }
+			 } );
+	connect( optionsToVTFLineEdit, &QLineEdit::textChanged, batchOptionsGroup, [toOrFrom, &toVTFString, &toImageString]( const QString &str )
+			 {
+				 int curr = toOrFrom->currentData().toBool();
+				 if ( curr )
+					 toVTFString = str;
+				 else
+					 toImageString = str;
+			 } );
 
-	pVTFImportWindow->exec();
-
-	if ( pVTFImportWindow->IsCancelled() )
-		return;
-
-	//	QStringList VTFPaths;
-	std::map<QString, VTFFolder> folders;
-	VTFFolder *current;
-	QStringList list;
-	list << supportedWildcardImageList
-		 << ".animation.txt";
-
-	QDirIterator it( importFrom, list, QDir::Files | QDir::Hidden, QDirIterator::Subdirectories );
-	while ( it.hasNext() )
-	{
-		QString path = it.next();
-
-		QStringList temp = path.split( importFrom );
-		temp.pop_front();
-		QStringList temp2 = temp.join( "" ).split( "/" );
-		temp2.pop_front();
-		temp2.pop_back();
-		QString joined = temp2.join( "/" );
-
-		if ( !folders.contains( joined ) )
-		{
-			folders[joined] = {};
-		}
-
-		current = &folders[joined];
-
-		if ( path.endsWith( ".animation.txt" ) )
-		{
-			current->isAnimation = true;
-			continue;
-		}
-
-		if ( importFrom != exportTo )
-		{
-			QString dirCreator = exportTo;
-			for ( const auto &tPath : temp2 )
-			{
-				dirCreator += "/" + tPath;
-				if ( !QDir().exists( dirCreator ) )
-					QDir().mkdir( dirCreator );
-			}
-		}
-
-		current->paths.push_back( path );
-	}
-
-	QProgressBar frogressBar( this );
-	frogressBar.setMinimum( 0 );
-	frogressBar.setTextVisible( true );
-	frogressBar.setMinimumSize( 512, 64 );
-	frogressBar.move( ( this->width() / 2 ) - 256, ( this->height() / 2 ) - 32 );
-
-	for ( auto &[first, second] : folders )
-	{
-		frogressBar.show();
-		second.paths.sort();
-		pVTFImportWindow->clearImageList();
-		QString fullpath = exportTo;
-		if ( !first.isEmpty() )
-			fullpath.push_back( "/" + first + "/" );
-
-		if ( second.isAnimation )
-		{
-			frogressBar.setMaximum( 1 );
-			QString vtfFileName = ( fullpath + "/" + QFileInfo( second.paths[0] ).baseName() + ".vtf" );
-			frogressBar.setFormat( "Creating Animated VTF: " + vtfFileName );
-			frogressBar.setValue( 0 );
-			for ( const auto &file : second.paths )
-			{
-				pVTFImportWindow->AddImage( file );
-			}
-
-			VTFErrorType err;
-			auto vtf = pVTFImportWindow->GenerateVTF( err );
-			if ( err != SUCCESS )
-			{
-				QMessageBox::warning( this, "VTF Failed to generate.", QString( "The VTF failed to generate, reason: " ) + ( ( err == INVALID_IMAGE ) ? "Invalid Image" : "No Image Data" ) );
-				frogressBar.setValue( 1 );
-				frogressBar.close();
-				continue;
-			}
-			bool saved = vtf->Save( vtfFileName.toStdString().c_str() );
-			if ( !saved )
-				QMessageBox::warning( this, "VTF Failed to save.", QString( "The VTF failed to save, file: " ) + vtfFileName );
-
-			frogressBar.setValue( 1 );
-			frogressBar.close();
-			continue;
-		}
-
-		frogressBar.setMaximum( second.paths.size() );
-		frogressBar.setValue( 0 );
-		for ( const auto &file : second.paths )
-		{
-			QString vtfFileName = ( fullpath + "/" + QFileInfo( file ).baseName() + ".vtf" );
-			frogressBar.setFormat( "Creating VTF: " + vtfFileName );
-			frogressBar.setValue( frogressBar.value() + 1 );
-			pVTFImportWindow->AddImage( file );
-			VTFErrorType err;
-			auto vtf = pVTFImportWindow->GenerateVTF( err );
-			if ( err != SUCCESS )
-			{
-				QMessageBox::warning( this, "VTF Failed to generate.", QString( "The VTF failed to generate, reason: " ) + ( ( err == INVALID_IMAGE ) ? "Invalid Image" : "No Image Data" ) );
-				continue;
-			}
-			bool saved = vtf->Save( vtfFileName.toStdString().c_str() );
-			if ( !saved )
-				QMessageBox::warning( this, "VTF Failed to save.", QString( "The VTF failed to save, file: " ) + vtfFileName.toStdString().c_str() );
-			pVTFImportWindow->clearImageList();
-		}
-		frogressBar.close();
-	}
+	batchConvertQDialog->exec();
+	//	auto recentPaths = Options::get<QStringList>( STR_OPEN_RECENT );
+	//
+	//	QString importFrom = QFileDialog::getExistingDirectory(
+	//		this, "Import From", recentPaths.last(),
+	//		QFileDialog::Option::DontUseNativeDialog );
+	//
+	//	QString exportTo = QFileDialog::getExistingDirectory(
+	//		this, "Export To", recentPaths.last(),
+	//		QFileDialog::Option::DontUseNativeDialog );
+	//
+	//	if ( importFrom.isEmpty() )
+	//		return;
+	//
+	//	if ( exportTo.isEmpty() )
+	//		return;
+	//
+	//	if ( recentPaths.contains( importFrom ) )
+	//		recentPaths.removeAt( recentPaths.indexOf( importFrom ) );
+	//	recentPaths.push_back( importFrom );
+	//
+	//	if ( recentPaths.contains( exportTo ) )
+	//		recentPaths.removeAt( recentPaths.indexOf( exportTo ) );
+	//	recentPaths.push_back( exportTo );
+	//	Options::set( STR_OPEN_RECENT, recentPaths );
+	//
+	//	auto pVTFImportWindow = VTFEImport::Standalone( this );
+	//
+	//	pVTFImportWindow->exec();
+	//
+	//	if ( pVTFImportWindow->IsCancelled() )
+	//		return;
+	//
+	//	//	QStringList VTFPaths;
+	//	std::map<QString, VTFFolder> folders;
+	//	VTFFolder *current;
+	//	QStringList list;
+	//	list << supportedWildcardImageList
+	//		 << ".animation.txt";
+	//
+	//	QDirIterator it( importFrom, list, QDir::Files | QDir::Hidden, QDirIterator::Subdirectories );
+	//	while ( it.hasNext() )
+	//	{
+	//		QString path = it.next();
+	//
+	//		QStringList temp = path.split( importFrom );
+	//		temp.pop_front();
+	//		QStringList temp2 = temp.join( "" ).split( "/" );
+	//		temp2.pop_front();
+	//		temp2.pop_back();
+	//		QString joined = temp2.join( "/" );
+	//
+	//		if ( !folders.contains( joined ) )
+	//		{
+	//			folders[joined] = {};
+	//		}
+	//
+	//		current = &folders[joined];
+	//
+	//		if ( path.endsWith( ".animation.txt" ) )
+	//		{
+	//			current->isAnimation = true;
+	//			continue;
+	//		}
+	//
+	//		if ( importFrom != exportTo )
+	//		{
+	//			QString dirCreator = exportTo;
+	//			for ( const auto &tPath : temp2 )
+	//			{
+	//				dirCreator += "/" + tPath;
+	//				if ( !QDir().exists( dirCreator ) )
+	//					QDir().mkdir( dirCreator );
+	//			}
+	//		}
+	//
+	//		current->paths.push_back( path );
+	//	}
+	//
+	//	QProgressBar frogressBar( this );
+	//	frogressBar.setMinimum( 0 );
+	//	frogressBar.setTextVisible( true );
+	//	frogressBar.setMinimumSize( 512, 64 );
+	//	frogressBar.move( ( this->width() / 2 ) - 256, ( this->height() / 2 ) - 32 );
+	//
+	//	for ( auto &[first, second] : folders )
+	//	{
+	//		frogressBar.show();
+	//		second.paths.sort();
+	//		pVTFImportWindow->clearImageList();
+	//		QString fullpath = exportTo;
+	//		if ( !first.isEmpty() )
+	//			fullpath.push_back( "/" + first + "/" );
+	//
+	//		if ( second.isAnimation )
+	//		{
+	//			frogressBar.setMaximum( 1 );
+	//			QString vtfFileName = ( fullpath + "/" + QFileInfo( second.paths[0] ).baseName() + ".vtf" );
+	//			frogressBar.setFormat( "Creating Animated VTF: " + vtfFileName );
+	//			frogressBar.setValue( 0 );
+	//			for ( const auto &file : second.paths )
+	//			{
+	//				pVTFImportWindow->AddImage( file );
+	//			}
+	//
+	//			VTFErrorType err;
+	//			auto vtf = pVTFImportWindow->GenerateVTF( err );
+	//			if ( err != SUCCESS )
+	//			{
+	//				QMessageBox::warning( this, "VTF Failed to generate.", QString( "The VTF failed to generate, reason: " ) + ( ( err == INVALID_IMAGE ) ? "Invalid Image" : "No Image Data" ) );
+	//				frogressBar.setValue( 1 );
+	//				frogressBar.close();
+	//				continue;
+	//			}
+	//			bool saved = vtf->Save( vtfFileName.toStdString().c_str() );
+	//			if ( !saved )
+	//				QMessageBox::warning( this, "VTF Failed to save.", QString( "The VTF failed to save, file: " ) + vtfFileName );
+	//
+	//			frogressBar.setValue( 1 );
+	//			frogressBar.close();
+	//			continue;
+	//		}
+	//
+	//		frogressBar.setMaximum( second.paths.size() );
+	//		frogressBar.setValue( 0 );
+	//		for ( const auto &file : second.paths )
+	//		{
+	//			QString vtfFileName = ( fullpath + "/" + QFileInfo( file ).baseName() + ".vtf" );
+	//			frogressBar.setFormat( "Creating VTF: " + vtfFileName );
+	//			frogressBar.setValue( frogressBar.value() + 1 );
+	//			pVTFImportWindow->AddImage( file );
+	//			VTFErrorType err;
+	//			auto vtf = pVTFImportWindow->GenerateVTF( err );
+	//			if ( err != SUCCESS )
+	//			{
+	//				QMessageBox::warning( this, "VTF Failed to generate.", QString( "The VTF failed to generate, reason: " ) + ( ( err == INVALID_IMAGE ) ? "Invalid Image" : "No Image Data" ) );
+	//				continue;
+	//			}
+	//			bool saved = vtf->Save( vtfFileName.toStdString().c_str() );
+	//			if ( !saved )
+	//				QMessageBox::warning( this, "VTF Failed to save.", QString( "The VTF failed to save, file: " ) + vtfFileName.toStdString().c_str() );
+	//			pVTFImportWindow->clearImageList();
+	//		}
+	//		frogressBar.close();
+	//	}
 }
 
 void CMainWindow::importFromFile()
@@ -1280,9 +1433,8 @@ void CMainWindow::exportVTFToFile()
 		auto size =
 			VTFLib::CVTFFile::ComputeImageSize( pVTF->GetWidth(), pVTF->GetHeight(), 1, IMAGE_FORMAT_RGBA8888 );
 		auto pDest = static_cast<vlByte *>( malloc( size ) );
-		VTFLib::CVTFFile::ConvertToRGBA8888(
-			pVTF->GetData( frames, faces, slices, 0 ), pDest, pVTF->GetWidth(), pVTF->GetHeight(),
-			pVTF->GetFormat() );
+
+		VTFLib::CVTFFile::ConvertToRGBA8888( pVTF->GetData( frames, faces, slices, 0 ), pDest, pVTF->GetWidth(), pVTF->GetHeight(), pVTF->GetFormat() );
 		auto img = QImage( pDest, pVTF->GetWidth(), pVTF->GetHeight(), QImage::Format_RGBA8888 );
 		if ( fImageAmount > 1 )
 		{

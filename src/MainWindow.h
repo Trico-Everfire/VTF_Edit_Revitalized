@@ -22,8 +22,8 @@ namespace ui
 	{
 		Q_OBJECT
 
-		const QStringList supportedWildcardImageList = { "*.bmp", "*.gif", "*.tga", "*.png", "*.jpg", "*.jpeg", "*.tif", "*.tiff" };
-		const QStringList supportedImageList = { "bmp", "gif", "tga", "png", "jpg", "jpeg", "tif", "tiff" };
+		const QStringList supportedWildcardImageList = { "*.bmp", "*.gif", "*.tga", "*.png", "*.jpg", "*.jpeg", "*.tif", "*.tiff", "*.hdr" };
+		const QStringList supportedImageList = { "bmp", "gif", "tga", "png", "jpg", "jpeg", "tif", "tiff", "hdr" };
 
 		QHash<intptr_t, VTFLib::CVTFFile *> vtfWidgetList;
 
@@ -64,7 +64,7 @@ namespace ui
 		QAction *greenBox;
 		QAction *blueBox;
 		QAction *alphaBox;
-		void foldersToVTF();
+		void batchConvert();
 		void compressVTFFolder();
 		void generateVTFFromFont( const QString &filepath );
 		void fontToVTF();
