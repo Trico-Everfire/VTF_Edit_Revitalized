@@ -7,6 +7,8 @@ set(CMAKE_SKIP_BUILD_RPATH FALSE)
 set(CMAKE_BUILD_RPATH_USE_ORIGIN TRUE)
 set(CMAKE_INSTALL_RPATH $ORIGIN)
 
+#set(SOURCEPP_BUILD_WITH_THREADS OFF)
+
 if (WIN32)
     set(CMAKE_CXX_STANDARD 23)
 else ()
@@ -46,9 +48,7 @@ if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 endif ()
 
 
-set(VPKEDIT_BUILD_CLI OFF CACHE BOOL "" FORCE)
-set(VPKEDIT_BUILD_GUI OFF CACHE BOOL "" FORCE)
-set(VPKEDIT_BUILD_INSTALLER OFF CACHE BOOL "" FORCE)
+#
 
 
 if (UNIX)
@@ -110,8 +110,8 @@ set(SRC
         #        dialogs/VTFEAbout.cpp
         #        dialogs/VTFEAbout.h
         #        common/VTFEImageFormat.cpp
-        src/VTFEImageFormat.h
-        libs/stb/stb_image.h
+        src/VTFEImageContainer.h
+        #        libs/stb/stb_image.h
         #        dialogs/VTFEConfigFile.cpp
         #        dialogs/VTFEConfigFile.h
         #        widgets/VMTQSyntaxHighlighter.cpp
@@ -124,25 +124,29 @@ set(SRC
         src/EntryTree.h
         src/EntryTree.cpp)
 
-add_subdirectory(libs/VTFLib)
+#add_subdirectory(libs/VTFLib)
 
-set_target_properties(
-        vtflib PROPERTIES
-        # I don't know which one of these puts it next to the executable so let's do all of them!
-        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+#set_target_properties(
+#        vtflib PROPERTIES
+#        # I don't know which one of these puts it next to the executable so let's do all of them!
+#        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+#        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+#        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 
+add_subdirectory(libs/sourcepp)
+target_include_directories(vpkpp PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/libs/sourcepp/ext/hat-trie/include")
+target_include_directories(vpkpp PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libs/sourcepp/ext/hat-trie/include")
 add_subdirectory(libs/fmt)
-add_subdirectory(libs/vpklib)
+#add_subdirectory(libs/vpklib)
 #add_subdirectory(libs/QColorWheel)
 add_subdirectory(libs/SpeedyKV)
 
 add_executable(${PROJECT_NAME} ${SRC} src/res/res.qrc)
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Network Qt6::DBus Qt6::Core Qt6::Gui Qt::OpenGLWidgets vtflib fmt::fmt keyvalues libvpkedit)
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Network Qt6::DBus Qt6::Core Qt6::Gui Qt::OpenGLWidgets fmt::fmt keyvalues sourcepp::vpkpp sourcepp::vtfpp sourcepp::kvpp sourcepp::vcryptpp)
 
-target_include_directories(${PROJECT_NAME} PRIVATE libs/vpklib/include "${QT_INCLUDE} ${QT_INCLUDE}/QtWidgets" "${QT_INCLUDE}/QNetwork" "${QT_INCLUDE}/QtDBus" "${QT_INCLUDE}/QtGui" "${QT_INCLUDE}/QtCore" "${QT_INCLUDE}/QtOpenGLWidgets" ${QT_INCLUDE}/QtOpenGL ${OPENGL_LIBRARIES} OpenEXR::OpenEXR Imath::Imath Imath::Half)
-
+target_include_directories(${PROJECT_NAME} PRIVATE "${QT_INCLUDE} ${QT_INCLUDE}/QtWidgets" "${QT_INCLUDE}/QNetwork" "${QT_INCLUDE}/QtDBus" "${QT_INCLUDE}/QtGui" "${QT_INCLUDE}/QtCore" "${QT_INCLUDE}/QtOpenGLWidgets" ${QT_INCLUDE}/QtOpenGL ${OPENGL_LIBRARIES} OpenEXR::OpenEXR Imath::Imath Imath::Half)
+target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/libs/sourcepp/ext/hat-trie/include")
+target_include_directories(${PROJECT_NAME} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libs/sourcepp/ext/hat-trie/include")
 if (WIN32)
     # Copy these to bundle them with the program in releases
     configure_file("${QT_BASEDIR}/bin/opengl32sw.dll" "${CMAKE_BINARY_DIR}/opengl32sw.dll" COPYONLY)

@@ -15,29 +15,37 @@ InfoWidget::InfoWidget( QWidget *pParent ) :
 	setup_ui();
 }
 
-void InfoWidget::update_info( VTFLib::CVTFFile *file )
+void InfoWidget::update_info( vtfpp::VTF *file )
 {
 	for ( auto &pair : fields_ )
 	{
 		pair.second->clear();
 	}
 
+	this->slider->setDisabled( true );
+	this->sliderLabel->setDisabled( true );
+
 	if ( !file )
 		return;
 
-	find( "Width" )->setText( QString::number( file->GetWidth() ) );
-	find( "Height" )->setText( QString::number( file->GetHeight() ) );
-	find( "Depth" )->setText( QString::number( file->GetDepth() ) );
-	find( "Frames" )->setText( QString::number( file->GetFrameCount() ) );
-	find( "Faces" )->setText( QString::number( file->GetFaceCount() ) );
-	find( "Mips" )->setText( QString::number( file->GetMipmapCount() ) );
+	if ( vtfpp::ImageFormatDetails::large( file->getFormat() ) )
+	{
+		this->slider->setDisabled( false );
+		this->sliderLabel->setDisabled( false );
+	}
+	find( "Width" )->setText( QString::number( file->getWidth() ) );
+	find( "Height" )->setText( QString::number( file->getHeight() ) );
+	find( "Depth" )->setText( QString::number( file->getSliceCount() ) );
+	find( "Frames" )->setText( QString::number( file->getFrameCount() ) );
+	find( "Faces" )->setText( QString::number( file->getFaceCount() ) );
+	find( "Mips" )->setText( QString::number( file->getMipCount() ) );
 
-	find( "Version" )->setText( QString::number( file->GetMajorVersion() ) + "." + QString::number( file->GetMinorVersion() ) );
+	find( "Version" )->setText( QString::number( file->getMajorVersion() ) + "." + QString::number( file->getMinorVersion() ) );
 	auto clevel = find( "Compression Level" );
-	if ( file->GetMinorVersion() >= 6 )
+	if ( file->getMinorVersion() >= 6 )
 	{
 		clevel->setDisabled( false );
-		clevel->setText( QString( std::to_string( file->GetAuxCompressionLevel() ).c_str() ) );
+		clevel->setText( QString( std::to_string( file->getCompressionLevel() ).c_str() ) );
 	}
 	else
 	{
@@ -45,23 +53,26 @@ void InfoWidget::update_info( VTFLib::CVTFFile *file )
 		clevel->setDisabled( true );
 	}
 
-	auto size = file->GetSize();
+	auto size = file->bake().size();
 	find( "Size" )->setText(
 		fmt::format( FMT_STRING( "{:.2f} MiB ({:.2f} KiB)" ), size / ( 1024.f * 1024.f ), size / 1024.f ).c_str() );
 
-	vlSingle x, y, z;
-	file->GetReflectivity( x, y, z );
-	find( "Reflectivity" )->setText( fmt::format( FMT_STRING( "{:.3f} {:.3f} {:.3f}" ), x, y, z ).c_str() );
+	float x, y, z;
+	auto flt = file->getReflectivity();
+
+	find( "Reflectivity" )->setText( fmt::format( FMT_STRING( "{:.3f} {:.3f} {:.3f}" ), flt[0], flt[1], flt[2] ).c_str() );
 
 	// Select the correct image format
 	for ( int i = 0; i < util::ArraySize( IMAGE_FORMATS ); ++i )
 	{
-		if ( IMAGE_FORMATS[i].format == file->GetFormat() )
+		if ( IMAGE_FORMATS[i].format == file->getFormat() )
 		{
 			formatCombo_->setCurrentIndex( i );
 			break;
 		}
 	}
+
+	this->slider->setValue( 220 );
 }
 
 void InfoWidget::setup_ui()
@@ -103,6 +114,7 @@ void InfoWidget::setup_ui()
 	{
 		formatCombo_->addItem( fmt.name, (int)fmt.format );
 	}
+	formatCombo_->setDisabled( true );
 	imageGroupLayout->addWidget( new QLabel( "Image format:", this ), row, 0 );
 	imageGroupLayout->addWidget( formatCombo_, row, 1 );
 	++row;
@@ -119,6 +131,18 @@ void InfoWidget::setup_ui()
 
 		fields_.insert( { f, edit } );
 	}
+
+	this->sliderLabel = new QLabel( "HDR Slider:", imageGroupBox );
+	this->slider = new QSlider( Qt::Horizontal );
+	slider->setMinimum( 0 );
+	slider->setMaximum( 1000 );
+	slider->setValue( 220 );
+	imageGroupLayout->addWidget( sliderLabel, row, 0 );
+	imageGroupLayout->addWidget( slider, row, 1 );
+	++row;
+
+	this->slider->setDisabled( true );
+	this->sliderLabel->setDisabled( true );
 
 	layout->addWidget( fileGroupBox );
 	layout->addWidget( imageGroupBox );

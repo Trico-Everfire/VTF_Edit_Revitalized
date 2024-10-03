@@ -4,8 +4,7 @@
 #include "fmt/format.h"
 
 #include <QVBoxLayout>
-
-using namespace VTFLib;
+#include <kvpp/kvpp.h>
 
 ResourceWidget::ResourceWidget( QWidget *parent ) :
 	QWidget( parent )
@@ -13,7 +12,7 @@ ResourceWidget::ResourceWidget( QWidget *parent ) :
 	setup_ui();
 }
 
-void ResourceWidget::set_vtf( VTFLib::CVTFFile *file )
+void ResourceWidget::set_vtf( vtfpp::VTF *file )
 {
 	table_->clear();
 	table_->setRowCount( 0 );
@@ -22,81 +21,79 @@ void ResourceWidget::set_vtf( VTFLib::CVTFFile *file )
 		return;
 	}
 
-	auto resources = file->GetResourceCount();
+	auto resources = file->getResources();
 
-	int totalCount = resources;
-	for ( vlUInt i = 0; i < resources; ++i )
+	int totalCount = resources.size();
+	for ( auto resource : resources )
 	{
-		auto type = file->GetResourceType( i );
-		vlUInt size;
+		//		auto type = resource;
+		//		uint32_t size;
 
-		auto data = file->GetResourceData( type, size );
+		//		auto data = file->GetResourceData( type, size );
 
-		if ( type == VTF_RSRC_KEY_VALUE_DATA )
+		if ( resource.type == vtfpp::Resource::TYPE_KEYVALUES_DATA )
 		{
 			totalCount--;
-			auto pVMTFile = new VTFLib::CVMTFile();
+			auto pVMTFile = kvpp::KV1 { resource.getDataAsKeyValuesData() };
 
-			if ( !pVMTFile->Load( data, size ) )
+			if ( pVMTFile.isInvalid() )
 			{
-				delete pVMTFile;
 				continue;
 			}
 
-			totalCount += pVMTFile->GetRoot()->GetNodeCount();
-
-			delete pVMTFile;
+			totalCount += pVMTFile.getChildCount();
 		}
 	}
 
 	table_->setRowCount( totalCount );
-	resources = file->GetResourceCount();
+	//	resources = file->GetResourceCount();
+	// TODO: properly add KV resources.
 
-	for ( vlUInt i = 0, count = 0; i < resources; ++i )
-	{
-		auto type = file->GetResourceType( i );
-		vlUInt size;
-
-		auto data = file->GetResourceData( type, size );
-
-		if ( type != VTF_RSRC_KEY_VALUE_DATA )
-		{
-			table_->setItem( count, 0, new QTableWidgetItem( GetResourceName( type ) ) );
-
-			auto typeItem = new QTableWidgetItem( fmt::format( FMT_STRING( "0x{:X}" ), type ).c_str() );
-			table_->setItem( count, 1, typeItem );
-
-			auto sizeItem =
-				new QTableWidgetItem( fmt::format( FMT_STRING( "{:d} bytes ({:.2f} KiB)" ), size, size / 1024.f ).c_str() );
-			table_->setItem( count, 2, sizeItem );
-			count++;
-		}
-		else
-		{
-			auto pVMTFile = new VTFLib::CVMTFile();
-
-			if ( !pVMTFile->Load( data, size ) )
-			{
-				delete pVMTFile;
-				continue;
-			}
-
-			for ( int j = 0; j < pVMTFile->GetRoot()->GetNodeCount(); j++ )
-			{
-				auto String = static_cast<VTFLib::Nodes::CVMTStringNode *>( pVMTFile->GetRoot()->GetNode( j ) );
-
-				auto itemName = new QTableWidgetItem( String->GetName() );
-				table_->setItem( count, 0, itemName );
-
-				auto typeItem = new QTableWidgetItem( String->GetValue() );
-				table_->setItem( count, 1, typeItem );
-
-				count++;
-			}
-
-			delete pVMTFile;
-		}
-	}
+	//	for ( uint32_t i = 0, count = 0; i < resources; ++i )
+	//	{
+	//		auto type = file->GetResourceType( i );
+	//		uint32_t size;
+	//
+	//		auto data = file->GetResourceData( type, size );
+	//
+	//		if ( type != VTF_RSRC_KEY_VALUE_DATA )
+	//		{
+	//			table_->setItem( count, 0, new QTableWidgetItem( GetResourceName( type ) ) );
+	//
+	//			auto typeItem = new QTableWidgetItem( fmt::format( FMT_STRING( "0x{:X}" ), type ).c_str() );
+	//			table_->setItem( count, 1, typeItem );
+	//
+	//			auto sizeItem =
+	//				new QTableWidgetItem( fmt::format( FMT_STRING( "{:d} bytes ({:.2f} KiB)" ), size, size / 1024.f ).c_str() );
+	//			table_->setItem( count, 2, sizeItem );
+	//			count++;
+	//		}
+	//		else
+	//		{
+	//			auto pVMTFile = new VTFLib::CVMTFile();
+	//
+	//			if ( !pVMTFile->Load( data, size ) )
+	//			{
+	//				delete pVMTFile;
+	//				continue;
+	//			}
+	//
+	//			for ( int j = 0; j < pVMTFile->GetRoot()->GetNodeCount(); j++ )
+	//			{
+	//				auto String = static_cast<VTFLib::Nodes::CVMTStringNode *>( pVMTFile->GetRoot()->GetNode( j ) );
+	//
+	//				auto itemName = new QTableWidgetItem( String->GetName() );
+	//				table_->setItem( count, 0, itemName );
+	//
+	//				auto typeItem = new QTableWidgetItem( String->GetValue() );
+	//				table_->setItem( count, 1, typeItem );
+	//
+	//				count++;
+	//			}
+	//
+	//			delete pVMTFile;
+	//		}
+	//	}
 }
 
 void ResourceWidget::setup_ui()

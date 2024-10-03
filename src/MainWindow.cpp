@@ -1,5 +1,7 @@
 #include "MainWindow.h"
 
+#define STB_IMAGE_STATIC
+#define STB_IMAGE_IMPLEMENTATION
 #include "../libs/stb/stb_image.h"
 #include "EntryTree.h"
 #include "Options.h"
@@ -21,6 +23,7 @@
 #include <QScrollBar>
 #include <QStyle>
 #include <QTextEdit>
+#include <vcryptpp/vcryptpp.h>
 
 using namespace ui;
 
@@ -33,7 +36,7 @@ CMainWindow::CMainWindow() :
 
 	setAcceptDrops( true );
 
-	QWidget *centralWidget = new QWidget( this );
+	auto centralWidget = new QWidget( this );
 
 	auto pMainLayout = new QGridLayout( centralWidget );
 
@@ -152,10 +155,10 @@ CMainWindow::CMainWindow() :
 
 						 if ( item->getEntry().ends_with( "vtf" ) )
 						 {
-							 auto data = mainParent->pakFile()->readEntry( mainParent->pakFile()->findEntry( item->getEntry() ).value() );
-							 VTFLib::CVTFFile *file = new VTFLib::CVTFFile {};
-							 file->Load( data.value().data(), data.value().size(), false );
-							 addVTFToTab( file, item->getEntry().data() );
+							 //							 auto data = mainParent->pakFile()->readEntry( mainParent->pakFile()->findEntry( item->getEntry() ).value() );
+							 //
+							 //							 vtfpp::VTF *file = new vtfpp::VTF( data.value().data(), data.value().size() );
+							 //							 addVTFToTab( file, item->getEntry().data() );
 						 }
 					 }
 					 //					 model->fillItem( item );
@@ -214,6 +217,8 @@ CMainWindow::CMainWindow() :
 				 //				 m_pVerticalScrollBar->setMaximum( value );
 				 //				 m_pVerticalScrollBar->setValue( value / 2 );
 			 } );
+
+	connect( pImageInfo->getSlider(), &QSlider::valueChanged, pImageViewWidget, &ImageViewWidget::setHDRGamma );
 	//	connect( scrollWidget, &ZoomScrollArea::onScrollUp, this, [&, areaSize]
 	//			 {
 	//				 pImageViewWidget->zoom( 0.05 );
@@ -277,50 +282,51 @@ bool CMainWindow::separateSpriteSheetVTF()
 	if ( !pVTF )
 		return false;
 
-	if ( !pVTF->GetSupportsResources() )
+	if ( pVTF->getResources().empty() )
 		return false;
 
-	if ( !pVTF->GetHasResource( VTF_RSRC_SHEET ) )
+	if ( !pVTF->getResource( vtfpp::Resource::TYPE_PARTICLE_SHEET_DATA ) )
 		return false;
 
-	uint32_t size;
-	std::byte *data = reinterpret_cast<std::byte *>( pVTF->GetResourceData( VTF_RSRC_SHEET, size ) );
-	SpriteSheetHeader *header = reinterpret_cast<SpriteSheetHeader *>( data );
-
-	std::vector<Sequence> sequences;
-	int offset = sizeof( SpriteSheetHeader );
-	for ( int i = 0; i < header->sequenceCount; i++ )
-	{
-		Sequence *fullSequence = &sequences.emplace_back();
-		SpriteSheetSequence *sequence = reinterpret_cast<SpriteSheetSequence *>( data + offset );
-		fullSequence->sequenceNumber = sequence->sequenceNumber;
-		offset += sizeof( SpriteSheetHeader );
-		for ( int j = 0; j < sequence->frameCount; j++ )
-		{
-			Frame *frame = &fullSequence->frames.emplace_back();
-			frame->duration = *reinterpret_cast<float *>( data + offset );
-			offset += sizeof( float );
-			std::vector<Vec4> &coords = frame->coords;
-			for ( int k = 0; k < ( header->version == 1 ? 4 : 1 ); k++ )
-			{
-				coords.emplace_back( *reinterpret_cast<Vec4 *>( data + offset ) );
-				offset += sizeof( Vec4 );
-			}
-		}
-		fullSequence->clamp = sequence->clamp != 0;
-		fullSequence->duration = sequence->duration;
-	}
-
+	// TODO: Stylesheet stuff.
+	//	uint32_t size;
+	//	std::byte *data = reinterpret_cast<std::byte *>( pVTF->GetResourceData( VTF_RSRC_SHEET, size ) );
+	//	SpriteSheetHeader *header = reinterpret_cast<SpriteSheetHeader *>( data );
+	//
+	//	std::vector<Sequence> sequences;
+	//	int offset = sizeof( SpriteSheetHeader );
+	//	for ( int i = 0; i < header->sequenceCount; i++ )
+	//	{
+	//		Sequence *fullSequence = &sequences.emplace_back();
+	//		SpriteSheetSequence *sequence = reinterpret_cast<SpriteSheetSequence *>( data + offset );
+	//		fullSequence->sequenceNumber = sequence->sequenceNumber;
+	//		offset += sizeof( SpriteSheetHeader );
+	//		for ( int j = 0; j < sequence->frameCount; j++ )
+	//		{
+	//			Frame *frame = &fullSequence->frames.emplace_back();
+	//			frame->duration = *reinterpret_cast<float *>( data + offset );
+	//			offset += sizeof( float );
+	//			std::vector<Vec4> &coords = frame->coords;
+	//			for ( int k = 0; k < ( header->version == 1 ? 4 : 1 ); k++ )
+	//			{
+	//				coords.emplace_back( *reinterpret_cast<Vec4 *>( data + offset ) );
+	//				offset += sizeof( Vec4 );
+	//			}
+	//		}
+	//		fullSequence->clamp = sequence->clamp != 0;
+	//		fullSequence->duration = sequence->duration;
+	//	}
+	//
 	return true;
 };
 
-VTFLib::CVTFFile *CMainWindow::getVTFFromVTFFile( const char *path )
+vtfpp::VTF *CMainWindow::getVTFFromVTFFile( const char *path )
 {
-	auto vVTF = new VTFLib::CVTFFile();
-	if ( !vVTF->Load( path, false ) )
-		return nullptr;
+	//	auto vVTF = new VTFLib::CVTFFile();
+	//	if ( !vVTF->Load( path, false ) )
+	//		return nullptr;
 
-	return vVTF;
+	return new vtfpp::VTF( path );
 }
 
 void CMainWindow::addVTFFromPathToTab( const QString &path )
@@ -332,7 +338,7 @@ void CMainWindow::addVTFFromPathToTab( const QString &path )
 	addVTFToTab( pVTF, fileInfo.fileName() );
 }
 
-void CMainWindow::addVTFToTab( VTFLib::CVTFFile *pVTF, const QString &name )
+void CMainWindow::addVTFToTab( vtfpp::VTF *pVTF, const QString &name )
 {
 	if ( pVTF )
 	{
@@ -475,12 +481,12 @@ void CMainWindow::compressVTFFile()
 	int setbackIndex = 1;
 #ifdef CHAOS_INITIATIVE
 	setbackIndex = 2;
-	for ( int i = 0; i <= VTF_MINOR_VERSION; i++ )
+	for ( int i = 0; i <= 6; i++ )
 #else
 	for ( int i = 0; i <= 5; i++ )
 #endif
 	{
-		pVtfVersionBox->addItem( QString::number( VTF_MAJOR_VERSION ) + "." + QString::number( i ), i );
+		pVtfVersionBox->addItem( QString::number( 7 ) + "." + QString::number( i ), i );
 	}
 	pVtfVersionBox->setCurrentIndex( pVtfVersionBox->count() - setbackIndex );
 	vBLayout->addWidget( pVtfVersionBox, 0, 1, Qt::AlignRight );
@@ -597,7 +603,7 @@ void CMainWindow::compressVTFFile()
 
 	foreach( QString filePath, filePaths )
 	{
-		VTFLib::CVTFFile *pVTF = getVTFFromVTFFile( filePath.toUtf8().constData() );
+		vtfpp::VTF *pVTF = getVTFFromVTFFile( filePath.toUtf8().constData() );
 
 		if ( !pVTF )
 		{
@@ -606,31 +612,31 @@ void CMainWindow::compressVTFFile()
 		}
 
 #ifdef CHAOS_INITIATIVE
-		if ( pVTF->GetMinorVersion() == pVtfVersionBox->currentData().toInt() && pVTF->GetAuxCompressionLevel() == pAuxCompressionLevelBox->currentData().toInt() )
+		if ( pVTF->getMinorVersion() == pVtfVersionBox->currentData().toInt() && pVTF->getCompressionLevel() == pAuxCompressionLevelBox->currentData().toInt() )
 			continue;
 #else
 		if ( pVTF->GetMinorVersion() == pVtfVersionBox->currentData().toInt() )
 			continue;
 #endif
 
-		pVTF->SetVersion( 7, pVtfVersionBox->currentData().toInt() );
+		pVTF->setVersion( 7, pVtfVersionBox->currentData().toInt() );
 
 #ifdef CHAOS_INITIATIVE
 		if ( pAuxCompressionBox->isChecked() )
 		{
-			pVTF->SetAuxCompressionLevel( pAuxCompressionLevelBox->currentData().toInt() );
+			pVTF->setCompressionLevel( pAuxCompressionLevelBox->currentData().toInt() );
 		}
 #endif
 
 		if ( pRecomputeReflectivity->isChecked() )
 		{
-			pVTF->ComputeReflectivity();
+			pVTF->computeReflectivity();
 		}
 
 		if ( pathDirectory.isEmpty() )
-			pVTF->Save( filePath.toUtf8().constData() );
+			pVTF->bake( filePath.toUtf8().constData() );
 		else
-			pVTF->Save( ( pathDirectory + "/" + QFileInfo( filePath ).fileName() ).toUtf8().constData() );
+			pVTF->bake( ( pathDirectory + "/" + QFileInfo( filePath ).fileName() ).toUtf8().constData() );
 
 		delete pVTF;
 	}
@@ -664,12 +670,12 @@ void CMainWindow::compressVTFFolder()
 	int setbackIndex = 1;
 #ifdef CHAOS_INITIATIVE
 	setbackIndex = 2;
-	for ( int i = 0; i <= VTF_MINOR_VERSION; i++ )
+	for ( int i = 0; i <= 6; i++ )
 #else
 	for ( int i = 0; i <= 5; i++ )
 #endif
 	{
-		pVtfVersionBox->addItem( QString::number( VTF_MAJOR_VERSION ) + "." + QString::number( i ), i );
+		pVtfVersionBox->addItem( QString::number( 7 ) + "." + QString::number( i ), i );
 	}
 	pVtfVersionBox->setCurrentIndex( pVtfVersionBox->count() - setbackIndex );
 	vBLayout->addWidget( pVtfVersionBox, 0, 1, Qt::AlignRight );
@@ -812,44 +818,46 @@ void CMainWindow::compressVTFFolder()
 			}
 		}
 
-		std::unique_ptr<VTFLib::CVTFFile> pVTF( getVTFFromVTFFile( path.toStdString().c_str() ) );
+		std::unique_ptr<vtfpp::VTF> pVTF( getVTFFromVTFFile( path.toStdString().c_str() ) );
 
-		if ( !pVTF || !pVTF->IsLoaded() )
+		if ( !pVTF || !*pVTF )
 		{
 			QMessageBox::warning( this, "INVALID VTF", "The VTF is invalid.\n" + dirPath, QMessageBox::Ok );
 			continue;
 		}
 #ifdef CHAOS_INITIATIVE
-		if ( pVTF->GetMinorVersion() == pVtfVersionBox->currentData().toInt() && pVTF->GetAuxCompressionLevel() == pAuxCompressionLevelBox->currentData().toInt() && pathDirectory.isEmpty() )
+		if ( pVTF->getMinorVersion() == pVtfVersionBox->currentData().toInt() && pVTF->getCompressionLevel() == pAuxCompressionLevelBox->currentData().toInt() && pathDirectory.isEmpty() )
 			continue;
 #else
 		if ( pVTF->GetMinorVersion() == pVtfVersionBox->currentData().toInt() && pathDirectory.isEmpty() )
 			continue;
 #endif
-		pVTF->SetVersion( 7, pVtfVersionBox->currentData().toInt() );
+		pVTF->setVersion( 7, pVtfVersionBox->currentData().toInt() );
 
 #ifdef CHAOS_INITIATIVE
 		if ( pAuxCompressionBox->isChecked() )
 		{
-			pVTF->SetAuxCompressionLevel( pAuxCompressionLevelBox->currentData().toInt() );
+			pVTF->setCompressionLevel( pAuxCompressionLevelBox->currentData().toInt() );
 		}
 #endif
 
 		if ( pRecomputeReflectivity->isChecked() )
 		{
-			pVTF->ComputeReflectivity();
+			pVTF->computeReflectivity();
 		}
 
 		if ( pathDirectory.isEmpty() )
 		{
-			if ( !pVTF->Save( path.toUtf8().constData() ) )
+			pVTF->bake( path.toUtf8().constData() );
+			if ( !true )
 			{
 				QMessageBox::warning( this, "Unable to save VTF", "The VTF cannot be saved.\n" + dirPath, QMessageBox::Ok );
 			}
 		}
 		else
 		{
-			if ( !pVTF->Save( ( pathDirectory + "/" + temp.join( "" ) ).toUtf8().constData() ) )
+			pVTF->bake( ( pathDirectory + "/" + temp.join( "" ) ).toUtf8().constData() );
+			if ( false )
 			{
 				QMessageBox::warning( this, "Unable to save VTF", "The VTF cannot be saved.\n" + dirPath, QMessageBox::Ok );
 			}
@@ -1216,7 +1224,7 @@ void CMainWindow::NewVTFFromVTF( const QString &filePath )
 		return;
 
 	VTFErrorType err;
-	pVTF = pVTFImportWindow->GenerateVTF( err );
+	pVTF = pVTFImportWindow->GenerateVTF( err ).release();
 
 	if ( err != SUCCESS )
 	{
@@ -1271,7 +1279,7 @@ void CMainWindow::generateVTFFromImage( const QString &filePath )
 		return;
 	}
 
-	addVTFToTab( pVTF, QFileInfo( filePath ).fileName() );
+	addVTFToTab( pVTF.release(), QFileInfo( filePath ).fileName() );
 }
 
 void CMainWindow::generateVTFFromImages( QStringList filePaths )
@@ -1298,7 +1306,7 @@ void CMainWindow::generateVTFFromImages( QStringList filePaths )
 	}
 
 	QFileInfo fl( filePaths[0] );
-	addVTFToTab( pVTF, fl.fileName() );
+	addVTFToTab( pVTF.release(), fl.fileName() );
 }
 
 void CMainWindow::fontToVTF()
@@ -1321,7 +1329,21 @@ void CMainWindow::fontToVTF()
 
 void CMainWindow::generateVTFFromFont( const QString &filepath )
 {
-	int id = QFontDatabase::addApplicationFont( filepath );
+	int id = -1; // QFontDatabase::addApplicationFont( purepath );
+	if ( filepath.endsWith( "vfont" ) )
+	{
+		auto vContents = vcryptpp::VFONT::decrypt( sourcepp::fs::readFileBuffer( filepath.toStdString() ) );
+		QByteArray barray = QByteArray { reinterpret_cast<const char *>( vContents.data() ), static_cast<qsizetype>( vContents.size() ) };
+		id = QFontDatabase::addApplicationFontFromData( barray );
+	}
+	else
+	{
+		id = QFontDatabase::addApplicationFont( filepath );
+	}
+
+	if ( id == -1 )
+		return;
+
 	QString family = QFontDatabase::applicationFontFamilies( id ).at( 0 );
 	QString charList = R"( !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|})";
 
@@ -1368,7 +1390,7 @@ void CMainWindow::generateVTFFromFont( const QString &filepath )
 	stbi_uc *data = stbi_load_from_memory( reinterpret_cast<const stbi_uc *>( bufferrgb.data().constData() ), bufferrgb.size(), &x, &y, &n, 4 );
 	QFontDatabase::removeApplicationFont( id );
 
-	auto newWindow = VTFEImport::FromFont( this, data, 1024, 1024 );
+	auto newWindow = VTFEImport::FromFont( this, reinterpret_cast<std::byte *>( data ), 1024, 1024 );
 
 	newWindow->exec();
 
@@ -1382,9 +1404,9 @@ void CMainWindow::generateVTFFromFont( const QString &filepath )
 		QMessageBox::critical( this, "INVALID IMAGE", "The Image is invalid.", QMessageBox::Ok );
 		return;
 	}
-
+	stbi_image_free( data );
 	QFileInfo fl( filepath );
-	addVTFToTab( pVTF, fl.fileName() );
+	addVTFToTab( pVTF.release(), fl.fileName() );
 }
 
 void CMainWindow::exportVTFToFile()
@@ -1397,15 +1419,15 @@ void CMainWindow::exportVTFToFile()
 		return;
 
 	int type = 0;
-	int fImageAmount = pVTF->GetFrameCount();
-	if ( pVTF->GetFaceCount() > fImageAmount )
+	int fImageAmount = pVTF->getFrameCount();
+	if ( pVTF->getFaceCount() > fImageAmount )
 	{
-		fImageAmount = pVTF->GetFaceCount();
+		fImageAmount = pVTF->getFaceCount();
 		type = 1;
 	}
-	if ( pVTF->GetDepth() > fImageAmount )
+	if ( pVTF->getSliceCount() > fImageAmount )
 	{
-		fImageAmount = pVTF->GetDepth();
+		fImageAmount = pVTF->getSliceCount();
 		type = 2;
 	}
 
@@ -1426,16 +1448,17 @@ void CMainWindow::exportVTFToFile()
 
 	for ( int i = 0; i < fImageAmount; i++ )
 	{
-		vlUInt frames = type == 0 ? i : 0;
-		vlUInt faces = type == 1 ? i : 0;
-		vlUInt slices = type == 2 ? i : 0;
+		uint32_t frames = type == 0 ? i : 0;
+		uint32_t faces = type == 1 ? i : 0;
+		uint32_t slices = type == 2 ? i : 0;
 
-		auto size =
-			VTFLib::CVTFFile::ComputeImageSize( pVTF->GetWidth(), pVTF->GetHeight(), 1, IMAGE_FORMAT_RGBA8888 );
-		auto pDest = static_cast<vlByte *>( malloc( size ) );
-
-		VTFLib::CVTFFile::ConvertToRGBA8888( pVTF->GetData( frames, faces, slices, 0 ), pDest, pVTF->GetWidth(), pVTF->GetHeight(), pVTF->GetFormat() );
-		auto img = QImage( pDest, pVTF->GetWidth(), pVTF->GetHeight(), QImage::Format_RGBA8888 );
+		//		auto size =
+		//			vtfpp::ImageFormatDetails::getDataLength( vtfpp::ImageFormat::RGBA8888, pVTF->getWidth(), pVTF->getHeight(), 1 );
+		//		auto pDest = static_cast<vlByte *>( malloc( size ) );
+		//
+		//		VTFLib::CVTFFile::ConvertToRGBA8888( pVTF->GetData( frames, faces, slices, 0 ), pDest, pVTF->GetWidth(), pVTF->GetHeight(), pVTF->GetFormat() );
+		auto data = pVTF->getImageDataAsRGBA8888( 0, faces, frames, slices );
+		auto img = QImage( reinterpret_cast<const uchar *>( data.data() ), pVTF->getWidth(), pVTF->getHeight(), QImage::Format_RGBA8888 );
 		if ( fImageAmount > 1 )
 		{
 			QString nummedPath =
@@ -1448,8 +1471,6 @@ void CMainWindow::exportVTFToFile()
 		}
 		else if ( !img.save( filePath ) )
 			QMessageBox::warning( this, "Failed to save image", "Failed to save: " + filePath, QMessageBox::Ok );
-
-		free( pDest );
 	}
 }
 
@@ -1480,7 +1501,7 @@ void CMainWindow::saveVTFToFile()
 	if ( !filePath.endsWith( ".vtf" ) )
 		filePath.append( ".vtf" );
 
-	pVTF->Save( filePath.toUtf8().constData() );
+	pVTF->bake( filePath.toUtf8().constData() );
 }
 
 void CMainWindow::resizeEvent( QResizeEvent *r )
@@ -1494,6 +1515,7 @@ void CMainWindow::dragEnterEvent( QDragEnterEvent *event )
 	QStringList extendedSupportedImageList = supportedImageList;
 	extendedSupportedImageList << "ttf"
 							   << "otf"
+							   << "vfont"
 							   << "vtf";
 	if ( event->mimeData()->hasUrls() )
 	{
@@ -1520,6 +1542,7 @@ void CMainWindow::consoleParameters( int argc, char **argv )
 	QStringList extendedSupportedImageList = supportedImageList;
 	extendedSupportedImageList << "ttf"
 							   << "otf"
+							   << "vfont"
 							   << "vtf";
 
 	for ( int i = 1; i < argc; i++ )
@@ -1554,7 +1577,7 @@ void CMainWindow::addFile( QString filePath )
 		return;
 	}
 
-	if ( suffix == "ttf" || suffix == "otf" )
+	if ( suffix == "ttf" || suffix == "otf" || "vfont" )
 	{
 		generateVTFFromFont( filePath );
 		return;

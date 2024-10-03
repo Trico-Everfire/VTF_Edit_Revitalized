@@ -1,4 +1,4 @@
-#include "dialogs/VTFEdit.h"
+// #include "dialogs/VTFEdit.h"
 #include "src/MainWindow.h"
 #include "src/Options.h"
 
@@ -7,7 +7,6 @@
 #include <QDir>
 #include <QLocalServer>
 #include <QLocalSocket>
-#include <QMessageBox>
 #include <QNativeIpcKey>
 #include <QSharedMemory>
 #include <QStyleFactory>
@@ -44,34 +43,6 @@ int closeApplication()
 	return res;
 }
 
-#define tr
-
-void displayError( QLocalSocket::LocalSocketError socketError )
-{
-	switch ( socketError )
-	{
-		case QLocalSocket::ServerNotFoundError:
-			QMessageBox::information( nullptr, tr( "Local Fortune Client" ),
-									  tr( "The host was not found. Please make sure "
-										  "that the server is running and that the "
-										  "server name is correct." ) );
-			break;
-		case QLocalSocket::ConnectionRefusedError:
-			QMessageBox::information( nullptr, tr( "Local Fortune Client" ),
-									  tr( "The connection was refused by the peer. "
-										  "Make sure the fortune server is running, "
-										  "and check that the server name "
-										  "is correct." ) );
-			break;
-		case QLocalSocket::PeerClosedError:
-			break;
-		default:
-			QMessageBox::information( nullptr, tr( "Local Fortune Client" ),
-									  tr( "The following error occurred: %1." ) );
-			//										  .arg(socket->errorString()));
-	}
-}
-
 int main( int argc, char **argv )
 {
 	QApplication app( argc, argv );
@@ -102,8 +73,7 @@ int main( int argc, char **argv )
 			return 1;
 		}
 		socket->flush();
-		//		if ( !socket->waitForBytesWritten() )
-		//			return 1;
+
 		socket->waitForDisconnected( 30000 );
 		return 0;
 	}
@@ -173,8 +143,6 @@ int main( int argc, char **argv )
 
 						  qInfo() << socket->waitForReadyRead( 3000 );
 
-						  QObject::connect( socket, &QLocalSocket::errorOccurred, &displayError );
-
 						  QDataStream in;
 						  in.setDevice( socket );
 						  in.setVersion( QDataStream::Qt_6_7 );
@@ -196,7 +164,7 @@ int main( int argc, char **argv )
 						  }
 
 						  pVTFEdit->consoleParameters( list.size(), aquiredArgs );
-
+						  pVTFEdit->activateWindow();
 						  for ( int i = 0; i < list.size(); i++ )
 							  delete aquiredArgs[i];
 

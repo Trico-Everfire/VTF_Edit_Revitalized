@@ -1,7 +1,7 @@
 #pragma once
 #include "../libs/QColorWheel/QtColorTriangle.h"
-#include "../libs/VTFLib/VTFLib/VTFLib.h"
-#include "VTFEImageFormat.h"
+// #include "../libs/VTFLib/VTFLib/VTFLib.h"
+#include "VTFEImageContainer.h"
 
 #include <QCheckBox>
 #include <QColorDialog>
@@ -10,6 +10,8 @@
 #include <QDoubleSpinBox>
 #include <QGridLayout>
 #include <QGroupBox>
+#include <QListWidget>
+#include <vtfpp/vtfpp.h>
 
 enum VTFErrorType
 {
@@ -19,6 +21,31 @@ enum VTFErrorType
 };
 
 class VTFEImport;
+
+class ImageProcessor : public QDialog
+{
+	Q_OBJECT
+
+	friend class VTFEImport;
+
+public:
+	ImageProcessor( VTFEImport *parent );
+	//	QGroupBox *ImageProcessorCustomMipmaps();
+	//	QGroupBox *vBoxCustomMipMaps;
+
+	class QMultiDragListWidget : public QListWidget
+	{
+	public:
+		QMultiDragListWidget( QWidget *parent ) :
+			QListWidget( parent ) {}
+
+		bool base = false;
+
+	protected:
+		void dragMoveEvent( QDragMoveEvent *e ) override;
+		void dropEvent( QDropEvent *event ) override;
+	};
+};
 
 class GeneralTab : public QDialog
 {
@@ -147,19 +174,32 @@ public:
 class VTFEImport : public QDialog
 {
 	Q_OBJECT
+	friend class ImageProcessor;
 	friend class GeneralTab;
 	friend class AdvancedTab;
 	friend class ResourceTab;
 
-	SVTFCreateOptions VTFCreateOptions {};
-	vlUInt vtfImageFlags = 0;
+	//	SVTFCreateOptions VTFCreateOptions {};
+	vtfpp::VTF *editableVTF = nullptr;
+	vtfpp::VTF::Flags vtfImageFlags = vtfpp::VTF::FLAG_NONE;
+	ImageProcessor *pImageProcessor;
 	GeneralTab *pGeneralTab;
 	AdvancedTab *pAdvancedTab;
 	ResourceTab *pResourceTab;
 	explicit VTFEImport( QWidget *pParent );
-	QMap<int, VTFEImageFormat *> imageList;
+	QMap<int, VTFEImageContainer *> imageList;
+	QMap<int, QThread *> importThreads;
+	int threadsImported = 0;
+	//	std::vector<VTFEImageContainer *> imageList;
 	bool isCancelled = true;
 	void InitializeWidgets();
+	void setVTF( vtfpp::VTF *vtf )
+	{
+		if ( vtf )
+			this->editableVTF = vtf;
+		else
+			this->editableVTF = nullptr;
+	};
 
 public:
 	VTFEImport( QWidget *pParent, const QString &filePath, bool &hasData );
@@ -169,21 +209,20 @@ public:
 		foreach( auto imageFormat, imageList )
 			delete imageFormat;
 	}
-	VTFLib::CVTFFile *GenerateVTF( VTFErrorType &err );
-	bool IsCancelled() const { return isCancelled; }
+	std::unique_ptr<vtfpp::VTF> GenerateVTF( VTFErrorType &err );
+	[[nodiscard]] bool IsCancelled() const { return isCancelled; }
 
-	static vlBool
-	IsPowerOfTwo( vlUInt uiSize );
-	static VTFEImport *FromVTF( QWidget *pParent, VTFLib::CVTFFile *pFile );
-	static VTFEImport *FromFont( QWidget *pParent, vlByte *buff, int width, int height );
+	static VTFEImport *FromVTF( QWidget *pParent, const vtfpp::VTF *pFile );
+	static VTFEImport *FromFont( QWidget *pParent, std::byte *buff, int width, int height );
 	static VTFEImport *Standalone( QWidget *pParent );
 	void AddImage( const QString &qString );
 	void clearImageList();
-	[[nodiscard]] const VTFEImageFormat *const grabFirst() const
+	[[nodiscard]] VTFEImageContainer *grabFirst() const
 	{
-		if ( !imageList.size() < 1 )
+		if ( imageList.empty() )
 			return nullptr;
 		return imageList[0];
 	}
 	void SetDefaults();
+	bool editVTF( vtfpp::VTF *pFile );
 };

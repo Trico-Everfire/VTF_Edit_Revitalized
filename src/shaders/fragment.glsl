@@ -5,6 +5,7 @@ in vec2 TexCoord;
 
 uniform sampler2D ourTexture;
 uniform int RGBA;
+uniform float gamma;
 
 
 void main()
@@ -49,6 +50,16 @@ void main()
         a = textureColor.a;
     }
 
+    vec3 hdrColor = vec3(r,g,b);
+    vec3 mapped = hdrColor / (hdrColor + vec3(1.0));
 
-    FragColor = vec4(r,g,b,a);
+    mapped = pow(mapped, vec3(1.0 / gamma));
+    if(gamma < 0){
+        FragColor = vec4(r, g, b, a);
+    }
+    else
+    {
+        FragColor = vec4(mapped, a);
+    }
+
 }

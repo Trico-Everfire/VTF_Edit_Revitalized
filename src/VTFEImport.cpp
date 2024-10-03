@@ -1,10 +1,11 @@
 #include "VTFEImport.h"
 
 #define STB_IMAGE_IMPLEMENTATION
-
+#define STB_IMAGE_STATIC
 #include "../libs/stb/stb_image.h"
 #include "ImageSettingsWidget.h"
 #include "MainWindow.h"
+#include "Options.h"
 #include "flagsandformats.hpp"
 #include "supported_formats/TiffSupport.h"
 
@@ -15,13 +16,19 @@
 #include <QCommandLineParser>
 #include <QDebug>
 #include <QDialogButtonBox>
+#include <QFileDialog>
+#include <QFuture>
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QLabel>
+#include <QListWidget>
 #include <QMessageBox>
+#include <QProgressDialog>
 #include <QPushButton>
 #include <QTabWidget>
+#include <QTimer>
 #include <cmath>
+#include <kvpp/kvpp.h>
 
 VTFEImport::VTFEImport( QWidget *pParent, const QString &filePath, bool &hasData ) :
 	QDialog( pParent )
@@ -29,8 +36,10 @@ VTFEImport::VTFEImport( QWidget *pParent, const QString &filePath, bool &hasData
 	hasData = true;
 
 	AddImage( filePath );
+	while ( !importThreads.isEmpty() )
+		continue;
 
-	if ( imageList.isEmpty() )
+	if ( imageList.empty() )
 	{
 		hasData = false;
 		return;
@@ -40,7 +49,7 @@ VTFEImport::VTFEImport( QWidget *pParent, const QString &filePath, bool &hasData
 
 	InitializeWidgets();
 
-	pGeneralTab->pFormatCombo->setCurrentIndex( pGeneralTab->pFormatCombo->findData( imageList[0]->getFormat() ) );
+	pGeneralTab->pFormatCombo->setCurrentIndex( pGeneralTab->pFormatCombo->findData( static_cast<uint32_t>( grabFirst()->getFormat() ) ) );
 }
 
 VTFEImport::VTFEImport( QWidget *pParent, const QStringList &filePaths, bool &hasData ) :
@@ -48,10 +57,22 @@ VTFEImport::VTFEImport( QWidget *pParent, const QStringList &filePaths, bool &ha
 {
 	hasData = true;
 
-	for ( int i = 0; i < filePaths.count(); i++ )
-		AddImage( filePaths[i] );
+	QProgressDialog *progress = new QProgressDialog( "", "Cancel", 0, filePaths.count() );
+	progress->setMinimumDuration( 0 );
+	progress->setWindowTitle( "Opening Image Files" );
+	progress->setLabelText( "Processing..." );
+	progress->setWindowModality( Qt::WindowModal );
 
-	if ( imageList.isEmpty() )
+	for ( int i = 0; i < filePaths.count(); i++ )
+	{
+		AddImage( filePaths[i] );
+		progress->setValue( i + 1 );
+	}
+
+	while ( !importThreads.isEmpty() )
+		continue;
+
+	if ( imageList.empty() )
 	{
 		hasData = false;
 		return;
@@ -61,418 +82,216 @@ VTFEImport::VTFEImport( QWidget *pParent, const QStringList &filePaths, bool &ha
 
 	InitializeWidgets();
 
-	pGeneralTab->pFormatCombo->setCurrentIndex( pGeneralTab->pFormatCombo->findData( imageList[0]->getFormat() ) );
-	pGeneralTab->pAlphaDetectedFormatCombo->setCurrentIndex( pGeneralTab->pAlphaDetectedFormatCombo->findData( imageList[0]->getFormat() ) );
+	pGeneralTab->pFormatCombo->setCurrentIndex( pGeneralTab->pFormatCombo->findData( static_cast<uint32_t>( grabFirst()->getFormat() ) ) );
+	pGeneralTab->pAlphaDetectedFormatCombo->setCurrentIndex( pGeneralTab->pAlphaDetectedFormatCombo->findData( static_cast<uint32_t>( grabFirst()->getFormat() ) ) );
 }
 
 void VTFEImport::SetDefaults()
 {
 	this->setWindowTitle( tr( "VTF Options" ) );
 	// filling default information.
-	VTFCreateOptions.ImageFormat = VTFImageFormat::IMAGE_FORMAT_RGBA32323232F;
-	VTFCreateOptions.uiVersion[0] = 7;
-	VTFCreateOptions.uiVersion[1] = 5;
-	VTFCreateOptions.uiStartFrame = 0;
-	VTFCreateOptions.bResize = true;
-	VTFCreateOptions.bMipmaps = true;
-	VTFCreateOptions.ResizeMethod = VTFResizeMethod::RESIZE_NEAREST_POWER2;
-	VTFCreateOptions.bResizeClamp = true;
-	VTFCreateOptions.uiResizeClampWidth = 2048;
-	VTFCreateOptions.uiResizeClampHeight = 2048;
+	//	VTFCreateOptions.ImageFormat = VTFImageFormat::vtfpp::ImageFormat::RGBA32323232F;
+	//	VTFCreateOptions.uiVersion[0] = 7;
+	//	VTFCreateOptions.uiVersion[1] = 5;
+	//	VTFCreateOptions.uiStartFrame = 0;
+	//	VTFCreateOptions.bResize = true;
+	//	VTFCreateOptions.bMipmaps = true;
+	//	VTFCreateOptions.ResizeMethod = VTFResizeMethod::RESIZE_NEAREST_POWER2;
+	//	VTFCreateOptions.bResizeClamp = true;
+	//	VTFCreateOptions.uiResizeClampWidth = 2048;
+	//	VTFCreateOptions.uiResizeClampHeight = 2048;
 }
 
-void VTFEImport::AddImage( const QString &qString )
+std::unique_ptr<vtfpp::VTF> VTFEImport::GenerateVTF( VTFErrorType &err )
 {
-	const char *file = qString.toUtf8().constData();
-
-	if ( qString.endsWith( ".tif" ) || qString.endsWith( ".tiff" ) )
-	{
-		//		ImageData_t data;
-		//		memset( &data, 0, sizeof( ImageData_t ) );
-		//		TiffSupport::Load_TIFF( file, &data );
-		//
-		//		//		if ( !data.bValidImageData )
-		//		//			return;
-		//
-		//		tagVTFImageFormat format = IMAGE_FORMAT_NONE;
-		//		int totalDataSize = data.nImageWidth * data.nImageHeight * data.nBitCountPerChannel * data.nCountChannels;
-		//
-		//		auto dat = std::vector<std::byte> {};
-		//		dat.resize( totalDataSize );
-		//
-		//		switch ( data.nBitCountPerChannel )
-		//		{
-		//			case 8:
-		//				format = data.bHasAlpha ? IMAGE_FORMAT_RGBA8888 : IMAGE_FORMAT_RGB888;
-		//				memcpy( dat.data(), data.pImageData, totalDataSize );
-		//				break;
-		//			case 16:
-		//				format = IMAGE_FORMAT_RGBA16161616F;
-		//				if ( !data.bHasAlpha )
-		//				{
-		//					auto tempBuff = std::vector<uint16_t> {};
-		//					// RGB16F does not exist in source, we are forced to upgrade to RGBA16F.
-		//					for ( int i = 0; i < totalDataSize; i += 3 )
-		//					{
-		//						tempBuff.push_back( data.pImageData16f[i] );
-		//						tempBuff.push_back( data.pImageData16f[i + 1] );
-		//						tempBuff.push_back( data.pImageData16f[i + 2] );
-		//						tempBuff.push_back( 65535 ); // Alpha set to max.
-		//					}
-		//					memcpy( dat.data(), tempBuff.data(), totalDataSize );
-		//				}
-		//				else
-		//				{
-		//					memcpy( dat.data(), data.pImageData16f, totalDataSize );
-		//				}
-		//				break;
-		//			case 32:
-		//				format = data.bHasAlpha ? IMAGE_FORMAT_RGBA32323232F : IMAGE_FORMAT_RGB323232F;
-		//				memcpy( dat.data(), data.pImageData32f, totalDataSize );
-		//				break;
-		//			default:
-		//				return;
-		//		}
-
-		TIFFFile tiffFIle;
-
-		bool success = TiffSupport::Load_TIFF( file, tiffFIle );
-
-		if ( !success || !tiffFIle.isValid )
-			return;
-
-		tagVTFImageFormat format = IMAGE_FORMAT_NONE;
-		switch ( tiffFIle.type )
-		{
-			case 8:
-				format = tiffFIle.hasAlpha ? IMAGE_FORMAT_RGBA8888 : IMAGE_FORMAT_RGB888;
-				break;
-			case 16:
-				format = IMAGE_FORMAT_RGBA16161616F;
-				//				{
-				//					std::vector<short> tempSHRTData;
-				//					std::vector<short> tempSHRTAlphaData {};
-				//					//					tempSHRTData.resize( tiffFIle.imageData.size() );
-				//					int newsize = tiffFIle.imageData.size() * 1.3;
-				//					//					tempSHRTAlphaData.resize( newsize );
-				//
-				//					memcpy( tempSHRTData.data(), tiffFIle.imageData.data(), tiffFIle.imageData.size() );
-				//
-				//					for ( auto it = tempSHRTData.begin(); it != tempSHRTData.end(); it += 3 )
-				//					{
-				//						tempSHRTAlphaData.push_back( 32767 );
-				//						tempSHRTAlphaData.push_back( 32767 );
-				//						tempSHRTAlphaData.push_back( 32767 );
-				//						tempSHRTAlphaData.push_back( 32767 );
-				//					}
-				//
-				//					tiffFIle.imageData = std::vector<std::byte>();
-				//					tiffFIle.imageData.resize( newsize );
-				//					memcpy( tiffFIle.imageData.data(), tempSHRTAlphaData.data(), newsize );
-				//				}
-				break;
-			case 32:
-				format = tiffFIle.hasAlpha ? IMAGE_FORMAT_RGBA32323232F : IMAGE_FORMAT_RGB323232F;
-				break;
-			default:
-				return;
-		}
-
-		imageList[imageList.size()] = new VTFEImageFormat(
-			reinterpret_cast<vlByte *>( tiffFIle.imageData.data() ), tiffFIle.width, tiffFIle.height, 0, format );
-		return;
-	}
-
-	int x, y, n;
-
-	if ( !stbi_is_hdr( file ) )
-	{
-		vlByte *data = stbi_load( file, &x, &y, &n, 0 );
-
-		if ( !data )
-			return;
-
-		imageList[imageList.size()] = new VTFEImageFormat(
-			data, x, y, 0, n == 4 ? IMAGE_FORMAT_RGBA8888 : IMAGE_FORMAT_RGB888 );
-
-		stbi_image_free( data );
-	}
-	else
-	{
-		float *data = stbi_loadf( file, &x, &y, &n, 0 );
-
-		if ( !data )
-			return;
-
-		auto convertedData = reinterpret_cast<vlByte *>( data );
-
-		tagVTFImageFormat format = n > 3 ? IMAGE_FORMAT_RGBA32323232F : IMAGE_FORMAT_RGB323232F;
-
-		imageList[imageList.size()] = new VTFEImageFormat(
-			convertedData, x, y, 0, format );
-
-		stbi_image_free( data );
-	}
-}
-
-VTFLib::CVTFFile *VTFEImport::GenerateVTF( VTFErrorType &err )
-{
-	if ( imageList.isEmpty() )
+	if ( imageList.empty() )
 	{
 		err = VTFErrorType::NO_DATA;
 		return nullptr;
 	}
 
-	auto vFile = new VTFLib::CVTFFile;
-
-	VTFCreateOptions.ImageFormat = static_cast<tagVTFImageFormat>( VTFLib::CVTFFile::GetImageFormatInfo( imageList[0]->getFormat() ).uiAlphaBitsPerPixel == 0 ? pGeneralTab->pFormatCombo->currentData().toInt() : pGeneralTab->pAlphaDetectedFormatCombo->currentData().toInt() );
-	VTFCreateOptions.uiVersion[0] = 7;
-	VTFCreateOptions.uiVersion[1] = pAdvancedTab->pVtfVersionBox->currentData().toInt();
-	VTFCreateOptions.bResize = ( pGeneralTab->pResizeMethodCombo->isEnabled() && pGeneralTab->pResizeCheckbox->isChecked() );
-	VTFCreateOptions.bMipmaps =
-		( pGeneralTab->pGenerateMipmapsCheckbox->isEnabled() && pGeneralTab->pGenerateMipmapsCheckbox->isChecked() );
-	VTFCreateOptions.MipmapFilter = static_cast<VTFMipmapFilter>( pGeneralTab->pMipmapFilterCombo->currentData().toInt() );
-	VTFCreateOptions.ResizeMethod = static_cast<VTFResizeMethod>( pGeneralTab->pResizeMethodCombo->currentData().toInt() );
-	VTFCreateOptions.bResizeClamp = ( pGeneralTab->pClampCheckbox->isEnabled() && pGeneralTab->pClampCheckbox->isChecked() );
-	;
-	VTFCreateOptions.uiResizeClampWidth = pGeneralTab->pClampWidthCombo->currentData().toInt();
-	VTFCreateOptions.uiResizeClampHeight = pGeneralTab->pClampHeightCombo->currentData().toInt();
-	VTFCreateOptions.bReflectivity =
-		( pAdvancedTab->pComputeReflectivityCheckBox->isEnabled() &&
-		  pAdvancedTab->pComputeReflectivityCheckBox->isChecked() );
-	VTFCreateOptions.sReflectivity[0] = pAdvancedTab->pLuminanceWeightRedBox->value();
-	VTFCreateOptions.sReflectivity[1] = pAdvancedTab->pLuminanceWeightGreenBox->value();
-	VTFCreateOptions.sReflectivity[2] = pAdvancedTab->pLuminanceWeightBlueBox->value();
-	VTFCreateOptions.bThumbnail =
-		( pAdvancedTab->pGenerateThumbnailCheckBox->isEnabled() &&
-		  pAdvancedTab->pGenerateThumbnailCheckBox->isChecked() );
-	VTFCreateOptions.bGammaCorrection =
-		( pAdvancedTab->pGammaCorrectionCheckBox->isEnabled() && pAdvancedTab->pGammaCorrectionCheckBox->isChecked() );
-	VTFCreateOptions.sGammaCorrection = pAdvancedTab->pGammaCorrectionBox->value();
-	VTFCreateOptions.bSphereMap =
-		( pAdvancedTab->pGenerateSphereMapCheckBox->isEnabled() &&
-		  pAdvancedTab->pGenerateSphereMapCheckBox->isChecked() );
-
-	VTFCreateOptions.bSRGB = pGeneralTab->pSRGBCheckbox->isChecked();
-
-	if ( vtfImageFlags != 0 )
-	{
-		VTFCreateOptions.uiFlags = vtfImageFlags;
-	}
-
-	auto pFFSArray = new vlByte *[imageList.size()];
-
-	for ( int i = 0; i < imageList.size(); i++ )
-	{
-		vlByte *imgData;
-		if ( !( VTFCreateOptions.ImageFormat == IMAGE_FORMAT_RGBA32323232F || VTFCreateOptions.ImageFormat == IMAGE_FORMAT_RGB323232F || VTFCreateOptions.ImageFormat == IMAGE_FORMAT_RGBA16161616F || VTFCreateOptions.ImageFormat == IMAGE_FORMAT_R32F ) )
-		{
-			imgData = new vlByte[VTFLib::CVTFFile::ComputeImageSize( imageList[i]->getWidth(), imageList[i]->getHeight(), 1, IMAGE_FORMAT_RGBA8888 )];
-			VTFLib::CVTFFile::Convert( imageList[i]->getData(), imgData, imageList[i]->getWidth(), imageList[i]->getHeight(), imageList[i]->getFormat(), IMAGE_FORMAT_RGBA8888 );
-		}
-		else
-		{
-			imgData = new vlByte[imageList[i]->getSize()];
-			memcpy( imgData, imageList[i]->getData(), imageList[i]->getSize() );
-		}
-
-#ifdef COLOR_CORRECTION
-		for ( int s = 0; s < images_[i]->getSize(); s += 4 )
-		{
-			//			int rgb1[3] = {0, 0, 0};
-			//			int rgb2[3] = {0, 0, 0};
-			//			int rgb3[3] = {0, 0, 0};
-			//			auto currentColor = new QColor(imgData[s],imgData[s + 1],imgData[s + 2]);
-			//			auto currentCMYK = currentColor->toCmyk();
-			//			float r = pAdvancedTab->colorCorrectionDialog_->color().saturationF();
-
-			//			currentColor->setCmyk(((currentCMYK.cyan()*(1 - r)) + (CMYK.cyan() * r)), ((currentCMYK.magenta()*(1 - r)) + (CMYK.magenta() * r)),((currentCMYK.yellow()*(1 - r)) - (CMYK.yellow() * r)), ((currentCMYK.black()*(1 - r)) - (CMYK.black() * r)) );
-			//			auto currentRGB = currentCMYK.toRgb();
-			//			auto RGB = CMYK.toRgb();
-
-			//			Advanced::HSVtoRGB((HSV.hueF() ) * 360,HSV.saturationF() * 100,HSV.valueF() * 100, rgb1);
-			//			Advanced::HSVtoRGB(HSV.hueF() * 360,HSV.saturationF() * 100,HSV.valueF() * 100, rgb2);
-			//			Advanced::HSVtoRGB(HSV.hueF() * 360,HSV.saturationF() * 100,HSV.valueF() * 100, rgb3);
-
-			//			float hue = currentColor->hueF() + pAdvancedTab->colorCorrectionDialog_->color().hueF();
-			//			hue /= (hue / 2);
-			//			float saturation = currentColor->saturationF() + pAdvancedTab->colorCorrectionDialog_->color().saturationF();
-			//			saturation /= (saturation / 2);
-			//			float value = currentColor->valueF() + pAdvancedTab->colorCorrectionDialog_->color().valueF();
-			//			value /= (value / 2);
-			//			currentColor->setHsvF(hue, saturation, value);
-
-			//			currentColor->setHsvF()
-
-			//			imgData[s] = currentColor->red();
-			//			imgData[s+1] = currentColor->green();
-			//			imgData[s+2] = currentColor->blue();
-			// imgData[s+3] = (imgData[s + 3] - HSV.alpha()) * 2;
-		}
+	auto destinationFormat = static_cast<vtfpp::ImageFormat>( vtfpp::ImageFormatDetails::alpha( grabFirst()->getFormat() ) == 0 ? pGeneralTab->pFormatCombo->currentData().toInt() : pGeneralTab->pAlphaDetectedFormatCombo->currentData().toInt() );
+	vtfpp::VTF::CreationOptions options;
+	options.outputFormat = destinationFormat;
+	options.minorVersion = pAdvancedTab->pVtfVersionBox->currentData().toInt();
+	options.widthResizeMethod = static_cast<vtfpp::ImageConversion::ResizeMethod>( pGeneralTab->pResizeMethodCombo->currentData().toInt() );
+	options.heightResizeMethod = static_cast<vtfpp::ImageConversion::ResizeMethod>( pGeneralTab->pResizeMethodCombo->currentData().toInt() );
+	options.flags = vtfImageFlags;
+	options.flags |= pGeneralTab->pSRGBCheckbox->isChecked() ? vtfpp::VTF::FLAG_SRGB : vtfpp::VTF::FLAG_NONE;
+	options.createReflectivity = pAdvancedTab->pComputeReflectivityCheckBox->isChecked();
+	options.createThumbnail = ( pAdvancedTab->pGenerateThumbnailCheckBox->isEnabled() && pAdvancedTab->pGenerateThumbnailCheckBox->isChecked() );
+	options.filter = static_cast<vtfpp::ImageConversion::ResizeFilter>( pGeneralTab->pResizeFilterCombo->currentData().toInt() );
+	options.createMips = false;
+#ifdef CHAOS_INITIATIVE
+	if ( pAdvancedTab->pAuxCompressionBox->isEnabled() && pAdvancedTab->pAuxCompressionBox->isChecked() )
+		options.compressionLevel = ( pAdvancedTab->pAuxCompressionLevelBox->currentData().toInt() );
 #endif
 
-		pFFSArray[i] = const_cast<vlByte *>( imgData );
+	int frames = imageList.size(); // pGeneralTab->pTypeCombo->currentIndex() == 0 ? imageList.size() - 1 : 0;
+	int faces = 0;				   // pGeneralTab->pTypeCombo->currentIndex() == 1 ? imageList.size() - 1 : 0;
+	int slices = 0;				   // pGeneralTab->pTypeCombo->currentIndex() == 2 ? imageList.size() - 1 : 0;
+
+	options.initialFrameCount = frames;
+	auto vFile = vtfpp::VTF::create( imageList[0]->getFormat(), imageList[0]->getWidth(), imageList[0]->getHeight(), options );
+
+	err = VTFErrorType::SUCCESS;
+	// return std::make_unique<vtfpp::VTF>( vFile );
+	auto testThreads = imageList;
+
+	//	QTimer *processTimer = new QTimer();
+	//	connect( processTimer, &QTimer::timeout, this, []
+	//			 {
+	//				 QApplication::processEvents();
+	//			 } );
+	//	processTimer->start( 100 );
+	//	auto thrd = new QThread();
+	//	processTimer->moveToThread( thrd );
+	//	thrd->start();
+
+	QProgressDialog *progress = new QProgressDialog( "", "Cancel", 0, imageList.size() );
+	progress->setMinimumDuration( 0 );
+	progress->setWindowTitle( "Inserting Image Data" );
+	progress->setLabelText( "Processing Iamges" );
+	progress->setWindowModality( Qt::WindowModal );
+
+	QMap<int, QThread *> threads;
+	int processed = imageList.size();
+	for ( int i = 0; i < imageList.size(); i++ )
+	{
+		auto lamb = [this, i, &vFile, &processed, &threads, options]() mutable
+		{
+			bool imageDataSet = vFile.setImage( imageList[i]->getData(), imageList[i]->getFormat(), imageList[i]->getWidth(), imageList[i]->getHeight(), options.filter, 0, i, 0, 0 );
+			threads.remove( i );
+			processed--;
+		};
+
+		threads[i] = QThread::create( lamb );
 	}
 
-	int frames = pGeneralTab->pTypeCombo->currentIndex() == 0 ? imageList.size() : 1;
-	int faces = pGeneralTab->pTypeCombo->currentIndex() == 1 ? imageList.size() : 1;
-	int slices = pGeneralTab->pTypeCombo->currentIndex() == 2 ? imageList.size() : 1;
+	for ( auto thrd : threads )
+	{
+		thrd->start();
+		QApplication::processEvents();
+	}
 
-	if ( !vFile->Create( imageList[0]->getWidth(), imageList[0]->getHeight(), frames, faces, slices, pFFSArray, VTFCreateOptions, imageList[0]->getFormat() ) )
+	for ( ; !threads.empty(); )
+	{
+		progress->setValue( progress->maximum() - processed );
+		QApplication::processEvents();
+	}
+
+	progress->setValue( imageList.size() );
+
+	delete progress;
+	if ( options.createMips )
+	{
+		progress = new QProgressDialog();
+		progress->setWindowTitle( "Generating Mipmaps" );
+		progress->setLabelText( "Mipmap generation in process" );
+		progress->setWindowModality( Qt::WindowModal );
+		progress->setMaximum( 1 );
+		progress->setMinimum( 0 );
+		progress->open();
+
+		progress->setValue( 0 );
+		vFile.computeMips( options.filter );
+		progress->setValue( 1 );
+		delete progress;
+	}
+
+	if ( !vFile.hasImageData() )
 	{
 		err = VTFErrorType::INVALID_IMAGE;
-		delete vFile;
-		return nullptr;
-	};
-
-	vFile->SetFlag( VTFImageFlag::TEXTUREFLAGS_SRGB, VTFCreateOptions.bSRGB );
-
-	if ( !vFile->IsLoaded() )
-	{
-		err = VTFErrorType::INVALID_IMAGE;
-		delete vFile;
 		return nullptr;
 	}
 
-	if ( vFile->GetSupportsResources() )
+	if ( vFile.getMinorVersion() > 2 )
 	{
-		bool bResult = true;
-
 		if ( pResourceTab->pLodControlResourceCheckBox->isChecked() )
 		{
-			SVTFTextureLODControlResource LODControlResource;
-			memset( &LODControlResource, 0, sizeof( SVTFTextureLODControlResource ) );
-			LODControlResource.ResolutionClampU = pResourceTab->pControlResourceCrampUBox->value();
-			LODControlResource.ResolutionClampV = pResourceTab->pControlResourceCrampVBox->value();
-
-			bResult &= vFile->SetResourceData( VTF_RSRC_TEXTURE_LOD_SETTINGS, sizeof( SVTFTextureLODControlResource ), &LODControlResource ) != nullptr;
+			vFile.setLODResource( pResourceTab->pControlResourceCrampUBox->value(), pResourceTab->pControlResourceCrampVBox->value() );
 		}
 
 		if ( pResourceTab->pCreateInformationResourceCheckBox->isChecked() )
 		{
-			auto pVMTFile = new VTFLib::CVMTFile();
+			auto pVMTFile = kvpp::KV1Writer {}; // new VTFLib::CVMTFile();
+			auto root = pVMTFile.addChild( "Information" );
 
-			pVMTFile->Create( "Information" );
 			if ( pResourceTab->pInformationResourceAuthor->text().length() > 0 )
 			{
-				pVMTFile->GetRoot()->AddStringNode( "Author", pResourceTab->pInformationResourceAuthor->text().toUtf8().constData() );
+				root.addChild( "Author", pResourceTab->pInformationResourceAuthor->text().toUtf8().constData() );
 			}
 			if ( pResourceTab->pInformationResouceContact->text().length() > 0 )
 			{
-				pVMTFile->GetRoot()->AddStringNode( "Contact", pResourceTab->pInformationResouceContact->text().toUtf8().constData() );
+				root.addChild( "Contact", pResourceTab->pInformationResouceContact->text().toUtf8().constData() );
 			}
 			if ( pResourceTab->pInformationResouceVersion->text().length() > 0 )
 			{
-				pVMTFile->GetRoot()->AddStringNode( "Version", pResourceTab->pInformationResouceVersion->text().toUtf8().constData() );
+				root.addChild( "Version", pResourceTab->pInformationResouceVersion->text().toUtf8().constData() );
 			}
 			if ( pResourceTab->pInformationResouceModification->text().length() > 0 )
 			{
-				pVMTFile->GetRoot()->AddStringNode( "Modification", pResourceTab->pInformationResouceModification->text().toUtf8().constData() );
+				root.addChild( "Modification", pResourceTab->pInformationResouceModification->text().toUtf8().constData() );
 			}
 			if ( pResourceTab->pInformationResouceDescription->text().length() > 0 )
 			{
-				pVMTFile->GetRoot()->AddStringNode( "Description", pResourceTab->pInformationResouceDescription->text().toUtf8().constData() );
+				root.addChild( "Description", pResourceTab->pInformationResouceDescription->text().toUtf8().constData() );
 			}
 			if ( pResourceTab->pInformationResouceComments->text().length() > 0 )
 			{
-				pVMTFile->GetRoot()->AddStringNode( "Comments", pResourceTab->pInformationResouceComments->text().toUtf8().constData() );
+				root.addChild( "Comments", pResourceTab->pInformationResouceComments->text().toUtf8().constData() );
 			}
-
-			vlUInt uiSize = 0;
-			vlByte lpBuffer[65536];
-			if ( pVMTFile->Save( lpBuffer, sizeof( lpBuffer ), uiSize ) )
-			{
-				bResult &= vFile->SetResourceData( VTF_RSRC_KEY_VALUE_DATA, uiSize, lpBuffer ) != nullptr;
-			}
-
-			delete pVMTFile;
-		}
-
-		if ( !bResult )
-		{
-			QMessageBox::warning( this, "Failed to apply resources", "Unable to apply resources. ", QMessageBox::Ok );
+			auto kvd = pVMTFile.bake();
+			vFile.setKeyValuesData( kvd );
 		}
 	}
-
-#ifdef NORMAL_GENERATION
-	if ( pGeneralTab->generateNormalMapCheckbox_->isEnabled() && pGeneralTab->generateNormalMapCheckbox_->isChecked() )
-	{
-		vFile->SetFlag( TEXTUREFLAGS_NORMAL, true );
-
-		if ( !vFile->IsLoaded() )
-			return VTFErrorType::INVALIDIMAGE;
-
-		if ( vFile->GetFlags() & TEXTUREFLAGS_ENVMAP )
-		{
-			VTFLib::LastError.Set( "Image is an enviroment map." );
-			return VTFErrorType::INVALIDIMAGE;
-		}
-
-		if ( !vFile->GetHasImage() )
-		{
-			VTFLib::LastError.Set( "No image data to generate normal map from." );
-			return VTFErrorType::INVALIDIMAGE;
-		}
-
-		vlByte *lpData = vFile->GetData( 0, 0, 0, 0 );
-
-		// Will hold frame's converted image data.
-		vlByte *lpSource =
-			new vlByte[vFile->ComputeImageSize( vFile->GetWidth(), vFile->GetHeight(), 1, IMAGE_FORMAT_RGBA32323232F )];
-
-		// Get the frame's image data.
-		if ( !vFile->Convert(
-				 lpData, lpSource, vFile->GetWidth(), vFile->GetHeight(), vFile->GetFormat(),
-				 IMAGE_FORMAT_RGBA32323232F ) )
-		{
-			//			delete []lpSource;
-			return VTFErrorType::INVALIDIMAGE;
-		}
-
-		// Will hold normal image data.
-		vlByte *lpDest =
-			new vlByte[vFile->ComputeImageSize( vFile->GetWidth(), vFile->GetHeight(), 1, vFile->GetFormat() )];
-
-		// toGreyScale(lpSource, vFile->ComputeImageSize(vFile->GetWidth(), vFile->GetHeight(), 1,
-		// IMAGE_FORMAT_RGBA8888) ,255, 255, 255, 255); lpDest = TEScO::generateFormattedHeightmap(lpSource,
-		// vFile->GetWidth(), vFile->GetHeight());
-
-		// Set the frame's image data.
-		if ( !vFile->Convert(
-				 lpSource /*lpDest*/, lpDest, vFile->GetWidth(), vFile->GetHeight(), IMAGE_FORMAT_RGBA32323232F,
-				 vFile->GetFormat() ) )
-		{
-			//			delete []lpSource;	// Moved from above.
-			//			delete []lpDest;
-			return VTFErrorType::INVALIDIMAGE;
-		}
-		vFile->SetData( 0, 0, 0, 0, lpDest );
-		//		delete []lpSource;	// Moved from above.
-		//		delete []lpDest;
-
-		// qInfo() <<
-		// vFile->GenerateNormalMap(static_cast<VTFKernelFilter>(pGeneralTab->kernelFilterCombo_->currentData().toInt()),
-		// static_cast<VTFHeightConversionMethod>(pGeneralTab->heightConversionCombo_->currentData().toInt()),static_cast<VTFNormalAlphaResult>(pGeneralTab->normalAlphaResultCombo_->currentData().toInt()));
-	}
-#endif
-
-#ifdef CHAOS_INITIATIVE
-	if ( pAdvancedTab->pAuxCompressionBox->isEnabled() && pAdvancedTab->pAuxCompressionBox->isChecked() )
-		vFile->SetAuxCompressionLevel( pAdvancedTab->pAuxCompressionLevelBox->currentData().toInt() );
-#endif
-
-	for ( int i = 0; i < imageList.size(); i++ )
-		delete[] pFFSArray[i];
-
-	delete[] pFFSArray;
 
 	err = VTFErrorType::SUCCESS;
-	return vFile;
+	return std::make_unique<vtfpp::VTF>( vFile.bake() );
 }
 
-vlBool VTFEImport::IsPowerOfTwo( vlUInt uiSize )
+void VTFEImport::AddImage( const QString &qString )
 {
-	return uiSize > 0 && ( uiSize & ( uiSize - 1 ) ) == 0;
+	int currentSize = threadsImported;
+	while ( importThreads.size() > 12 )
+		continue;
+	if ( qString.endsWith( ".gif" ) )
+	{
+		vtfpp::ImageFormat inputFormat;
+		int inputWidth, inputHeight, inputFrameCount;
+		auto imageData_ = vtfpp::ImageConversion::convertFileToImageData( sourcepp::fs::readFileBuffer( qString.toStdString() ), inputFormat, inputWidth, inputHeight, inputFrameCount );
+
+		if ( inputFormat == vtfpp::ImageFormat::EMPTY || !inputWidth || !inputHeight || !inputFrameCount )
+			return;
+
+		const auto frameSize = vtfpp::ImageFormatDetails::getDataLength( inputFormat, inputWidth, inputHeight );
+		for ( int i = 0; i < inputFrameCount; i++ )
+		{
+			auto lamb = [currentSize, i, frameSize, imageData_, inputWidth, inputHeight, inputFormat, this]() mutable
+			{
+				this->imageList[currentSize + i] = ( new VTFEImageContainer( imageData_.data() + frameSize * i, inputWidth, inputHeight, inputFormat ) );
+				importThreads.remove( currentSize + i );
+			};
+
+			auto thread = importThreads[currentSize + i] = QThread::create( lamb );
+			thread->start();
+		}
+		threadsImported += inputFrameCount;
+
+		return;
+	}
+
+	auto lamb = [this, currentSize, qString]() mutable
+	{
+		this->imageList[currentSize] = ( new VTFEImageContainer( qString ) );
+		//		importThreads[currentSize]->deleteLater();
+		importThreads.remove( currentSize );
+	};
+
+	auto thread = importThreads[currentSize] = QThread::create( lamb );
+	thread->start();
+
+	threadsImported++;
 }
 
 VTFEImport::VTFEImport( QWidget *pParent ) :
@@ -486,13 +305,16 @@ void VTFEImport::InitializeWidgets()
 	auto vBLayout = new QGridLayout( this );
 	auto widget = new QTabWidget( this );
 
+	pImageProcessor = new ImageProcessor( this );
 	pGeneralTab = new GeneralTab( this );
 	pAdvancedTab = new AdvancedTab( this );
 	pResourceTab = new ResourceTab( this );
 
+	widget->addTab( pImageProcessor, tr( "Images" ) );
 	widget->addTab( pGeneralTab, tr( "General" ) );
 	widget->addTab( pAdvancedTab, tr( "Advanced" ) );
 	widget->addTab( pResourceTab, tr( "Resource" ) );
+	widget->setCurrentIndex( 1 ); // We wanna start on General.
 	vBLayout->addWidget( widget, 0, 0, 1, 2 );
 	auto pPreviewButton = new QPushButton( this );
 	pPreviewButton->setText( tr( "Preview" ) );
@@ -505,10 +327,11 @@ void VTFEImport::InitializeWidgets()
 
 			auto scrollArea = new ui::ZoomScrollArea( dialog );
 			auto vIVW = new ImageViewWidget();
+			vIVW->setMinimumSize( 512, 512 );
 			//			scrollArea->setWidget( vIVW );
 			auto vISW = new ImageSettingsWidget( vIVW, dialog );
 			vRLayout->addWidget( vISW, 0, 0 );
-			vRLayout->addWidget( scrollArea, 0, 1, Qt::AlignCenter );
+			vRLayout->addWidget( vIVW, 0, 1, Qt::AlignCenter );
 
 			connect( scrollArea, &ui::ZoomScrollArea::onScrollUp, dialog, [vIVW]
 					 {
@@ -556,13 +379,12 @@ void VTFEImport::InitializeWidgets()
 			auto vtfFile = GenerateVTF( err );
 			if ( err == SUCCESS )
 			{
-				vIVW->set_vtf( vtfFile );
-				vISW->set_vtf( vtfFile );
+				vIVW->set_vtf( vtfFile.get() );
+				vISW->set_vtf( vtfFile.get() );
 			}
 			scrollArea->resize( dialog->width() + vISW->width(), dialog->height() );
 			dialog->setAttribute( Qt::WA_DeleteOnClose );
 			dialog->exec();
-			delete vtfFile;
 		} );
 	vBLayout->addWidget( pPreviewButton, 1, 0, Qt::AlignLeft );
 
@@ -585,64 +407,103 @@ void VTFEImport::InitializeWidgets()
 	vBLayout->addWidget( blayoutBox, 1, 1, Qt::AlignRight );
 }
 
-VTFEImport *VTFEImport::FromVTF( QWidget *pParent, VTFLib::CVTFFile *pFile )
+bool VTFEImport::editVTF( vtfpp::VTF *pFile )
 {
+	this->editableVTF = pFile;
+}
+
+VTFEImport *VTFEImport::FromVTF( QWidget *pParent, const vtfpp::VTF *pFile )
+{
+	//	auto oldVTF = pFile.bake();
+	//
+	//	auto newVTF = new vtfpp::VTF( oldVTF );
+	auto newVTF = new vtfpp::VTF( *pFile );
 	auto vVTFImport = new VTFEImport( pParent );
-
-	int type = 0;
-	vlUInt fImageAmount = pFile->GetFrameCount();
-	if ( pFile->GetFaceCount() > fImageAmount )
-	{
-		fImageAmount = pFile->GetFaceCount();
-		type = 1;
-	}
-	if ( pFile->GetDepth() > fImageAmount )
-	{
-		fImageAmount = pFile->GetDepth();
-		type = 2;
-	}
-
-	for ( int i = 0; i < fImageAmount; i++ )
-	{
-		vlUInt frames = type == 0 ? i : 0;
-		vlUInt faces = type == 1 ? i : 0;
-		vlUInt slices = type == 2 ? i : 0;
-
-		vVTFImport->imageList[vVTFImport->imageList.size()] =
-			new VTFEImageFormat( pFile->GetData( frames, faces, slices, 0 ), pFile->GetWidth(), pFile->GetHeight(), pFile->GetDepth(), pFile->GetFormat() );
-	}
-
+	vVTFImport->editVTF( newVTF );
 	vVTFImport->InitializeWidgets();
-
-	vVTFImport->pAdvancedTab->pVtfVersionBox->setCurrentIndex( pFile->GetMinorVersion() );
-	emit vVTFImport->pAdvancedTab->pVtfVersionBox->currentTextChanged( "7." + QString::number( pFile->GetMinorVersion() ) );
+	vVTFImport->pAdvancedTab->pVtfVersionBox->setCurrentIndex( pFile->getMinorVersion() );
+	emit vVTFImport->pAdvancedTab->pVtfVersionBox->currentTextChanged( "7." + QString::number( pFile->getMinorVersion() ) );
 #ifdef CHAOS_INITIATIVE
-	vVTFImport->pAdvancedTab->pAuxCompressionBox->setChecked( pFile->GetAuxCompressionLevel() > 0 );
-	emit vVTFImport->pAdvancedTab->pAuxCompressionBox->clicked( pFile->GetAuxCompressionLevel() > 0 );
-	if ( pFile->GetAuxCompressionLevel() > 0 )
-		vVTFImport->pAdvancedTab->pAuxCompressionLevelBox->setCurrentIndex( pFile->GetAuxCompressionLevel() );
+	vVTFImport->pAdvancedTab->pAuxCompressionBox->setChecked( pFile->getResource( vtfpp::Resource::TYPE_AUX_COMPRESSION )->getDataAsAuxCompressionLevel() > 0 );
+	emit vVTFImport->pAdvancedTab->pAuxCompressionBox->clicked( pFile->getResource( vtfpp::Resource::TYPE_AUX_COMPRESSION )->getDataAsAuxCompressionLevel() > 0 );
+	if ( pFile->getResource( vtfpp::Resource::TYPE_AUX_COMPRESSION ) )
+		vVTFImport->pAdvancedTab->pAuxCompressionLevelBox->setCurrentIndex( pFile->getResource( vtfpp::Resource::TYPE_AUX_COMPRESSION )->getDataAsAuxCompressionLevel() );
 #endif
-	vVTFImport->pGeneralTab->pGenerateMipmapsCheckbox->setChecked( pFile->GetMipmapCount() > 0 );
-	emit vVTFImport->pGeneralTab->pGenerateMipmapsCheckbox->clicked( pFile->GetMipmapCount() > 0 );
-	vVTFImport->pGeneralTab->pTypeCombo->setCurrentIndex( type );
-	vVTFImport->pGeneralTab->pTypeCombo->currentTextChanged( QString::number( type ) );
+	vVTFImport->pGeneralTab->pGenerateMipmapsCheckbox->setChecked( pFile->getMipCount() > 0 );
+	emit vVTFImport->pGeneralTab->pGenerateMipmapsCheckbox->clicked( pFile->getMipCount() > 0 );
+	// vVTFImport->pGeneralTab->pTypeCombo->setCurrentIndex( type );
+	//		vVTFImport->pGeneralTab->pTypeCombo->currentTextChanged( QString::number( type ) );
 	vVTFImport->pGeneralTab->pFormatCombo->setCurrentIndex(
-		vVTFImport->pGeneralTab->pFormatCombo->findData( pFile->GetFormat() ) );
+		vVTFImport->pGeneralTab->pFormatCombo->findData( static_cast<uint32_t>( pFile->getFormat() ) ) );
 	vVTFImport->pGeneralTab->pAlphaDetectedFormatCombo->setCurrentIndex(
-		vVTFImport->pGeneralTab->pAlphaDetectedFormatCombo->findData( pFile->GetFormat() ) );
-	vlSingle r;
-	vlSingle g;
-	vlSingle b;
-	pFile->GetReflectivity( r, g, b );
-	vVTFImport->pAdvancedTab->pLuminanceWeightRedBox->setValue( r );
-	vVTFImport->pAdvancedTab->pLuminanceWeightGreenBox->setValue( g );
-	vVTFImport->pAdvancedTab->pLuminanceWeightBlueBox->setValue( b );
+		vVTFImport->pGeneralTab->pAlphaDetectedFormatCombo->findData( static_cast<uint32_t>( pFile->getFormat() ) ) );
 
-	vVTFImport->pGeneralTab->pSRGBCheckbox->setChecked( pFile->GetFlag( VTFImageFlag::TEXTUREFLAGS_SRGB ) );
+	auto v = pFile->getReflectivity();
+	vVTFImport->pAdvancedTab->pLuminanceWeightRedBox->setValue( v[0] );
+	vVTFImport->pAdvancedTab->pLuminanceWeightGreenBox->setValue( v[1] );
+	vVTFImport->pAdvancedTab->pLuminanceWeightBlueBox->setValue( v[2] );
 
-	vVTFImport->vtfImageFlags = pFile->GetFlags();
+	vVTFImport->pGeneralTab->pSRGBCheckbox->setChecked( pFile->getFlags() & vtfpp::VTF::FLAG_SRGB );
 
-	return vVTFImport;
+	vVTFImport->vtfImageFlags = pFile->getFlags();
+	//	return this;
+	//
+	//	auto vVTFImport = new VTFEImport( pParent );
+	//
+	//	int type = 0;
+	//	uint32_t fImageAmount = pFile->getFrameCount();
+	//	if ( pFile->getFaceCount() > fImageAmount )
+	//	{
+	//		fImageAmount = pFile->getFaceCount();
+	//		type = 1;
+	//	}
+	//	if ( pFile->getSliceCount() > fImageAmount )
+	//	{
+	//		fImageAmount = pFile->getSliceCount();
+	//		type = 2;
+	//	}
+	//
+	//	for ( int i = 0; i < fImageAmount; i++ )
+	//	{
+	//		uint16_t frames = type == 0 ? i : 0;
+	//		uint8_t faces = type == 1 ? i : 0;
+	//		uint16_t slices = type == 2 ? i : 0;
+	//
+	//		auto rawSpan = pFile->getImageDataRaw( 0, frames, faces, slices );
+	//
+	//		vVTFImport->imageList[{ frames, faces, slices, 0 }] =
+	//			new VTFEImageContainer( { rawSpan.begin(), rawSpan.end() }, pFile->getWidth(), pFile->getHeight(), pFile->getFormat() );
+	//	}
+	//
+	//	vVTFImport->InitializeWidgets();
+	//
+	//	vVTFImport->pAdvancedTab->pVtfVersionBox->setCurrentIndex( pFile->getMinorVersion() );
+	//	emit vVTFImport->pAdvancedTab->pVtfVersionBox->currentTextChanged( "7." + QString::number( pFile->getMinorVersion() ) );
+	// #ifdef CHAOS_INITIATIVE
+	//	vVTFImport->pAdvancedTab->pAuxCompressionBox->setChecked( pFile->getResource( vtfpp::Resource::TYPE_AUX_COMPRESSION )->getDataAsAuxCompressionLevel() > 0 );
+	//	emit vVTFImport->pAdvancedTab->pAuxCompressionBox->clicked( pFile->getResource( vtfpp::Resource::TYPE_AUX_COMPRESSION )->getDataAsAuxCompressionLevel() > 0 );
+	//	if ( pFile->getResource( vtfpp::Resource::TYPE_AUX_COMPRESSION ) )
+	//		vVTFImport->pAdvancedTab->pAuxCompressionLevelBox->setCurrentIndex( pFile->getResource( vtfpp::Resource::TYPE_AUX_COMPRESSION )->getDataAsAuxCompressionLevel() );
+	// #endif
+	//	vVTFImport->pGeneralTab->pGenerateMipmapsCheckbox->setChecked( pFile->getMipCount() > 0 );
+	//	emit vVTFImport->pGeneralTab->pGenerateMipmapsCheckbox->clicked( pFile->getMipCount() > 0 );
+	//	vVTFImport->pGeneralTab->pTypeCombo->setCurrentIndex( type );
+	//	vVTFImport->pGeneralTab->pTypeCombo->currentTextChanged( QString::number( type ) );
+	//	vVTFImport->pGeneralTab->pFormatCombo->setCurrentIndex(
+	//		vVTFImport->pGeneralTab->pFormatCombo->findData( static_cast<uint32_t>( pFile->getFormat() ) ) );
+	//	vVTFImport->pGeneralTab->pAlphaDetectedFormatCombo->setCurrentIndex(
+	//		vVTFImport->pGeneralTab->pAlphaDetectedFormatCombo->findData( static_cast<uint32_t>( pFile->getFormat() ) ) );
+	//
+	//	auto v = pFile->getReflectivity();
+	//	vVTFImport->pAdvancedTab->pLuminanceWeightRedBox->setValue( v[0] );
+	//	vVTFImport->pAdvancedTab->pLuminanceWeightGreenBox->setValue( v[1] );
+	//	vVTFImport->pAdvancedTab->pLuminanceWeightBlueBox->setValue( v[2] );
+	//
+	//	vVTFImport->pGeneralTab->pSRGBCheckbox->setChecked( pFile->getFlags() & vtfpp::VTF::FLAG_SRGB );
+	//
+	//	vVTFImport->vtfImageFlags = pFile->getFlags();
+	//
+	//	return vVTFImport;
 }
 
 VTFEImport *VTFEImport::Standalone( QWidget *pParent )
@@ -656,12 +517,11 @@ VTFEImport *VTFEImport::Standalone( QWidget *pParent )
 	return vVTFImport;
 }
 
-VTFEImport *VTFEImport::FromFont( QWidget *pParent, vlByte *buff, int width, int height )
+VTFEImport *VTFEImport::FromFont( QWidget *pParent, std::byte *buff, int width, int height )
 {
 	auto vVTFImport = new VTFEImport( pParent );
-
-	vVTFImport->imageList[vVTFImport->imageList.size()] = new VTFEImageFormat(
-		buff, width, height, 0, IMAGE_FORMAT_RGBA8888 );
+	vVTFImport->imageList[0] = new VTFEImageContainer(
+		buff, width, height, vtfpp::ImageFormat::RGBA8888 );
 
 	vVTFImport->InitializeWidgets();
 
@@ -705,7 +565,7 @@ void GeneralTab::GeneralOptions()
 	pFormatCombo = new QComboBox( this );
 	for ( auto &fmt : IMAGE_FORMATS )
 	{
-		if ( VTFLib::CVTFFile::GetImageFormatInfo( fmt.format ).bIsSupported )
+		if ( vtfpp::ImageFormat::P8 != fmt.format )
 			pFormatCombo->addItem( tr( fmt.name ), (int)fmt.format );
 	}
 	vBLayout->addWidget( pFormatCombo, 0, 1, Qt::AlignRight );
@@ -716,9 +576,10 @@ void GeneralTab::GeneralOptions()
 	pAlphaDetectedFormatCombo = new QComboBox( this );
 	for ( auto &fmt : IMAGE_FORMATS )
 	{
-		if ( VTFLib::CVTFFile::GetImageFormatInfo( fmt.format ).bIsSupported )
+		if ( vtfpp::ImageFormat::P8 != fmt.format )
 			pAlphaDetectedFormatCombo->addItem( tr( fmt.name ), (int)fmt.format );
 	}
+
 	vBLayout->addWidget( pAlphaDetectedFormatCombo, 1, 1, Qt::AlignRight );
 
 	auto label2 = new QLabel();
@@ -758,10 +619,10 @@ void GeneralTab::GeneralResize()
 	pResizeCheckbox = new QCheckBox( this );
 	pResizeCheckbox->setText( tr( "Resize" ) );
 	auto parent = static_cast<VTFEImport *>( this->parent() );
-	if ( !parent->imageList.isEmpty() )
+	if ( !parent->imageList.empty() )
 	{
-		vlBool b1 = parent->IsPowerOfTwo( parent->imageList[0]->getWidth() );
-		vlBool b2 = parent->IsPowerOfTwo( parent->imageList[0]->getHeight() );
+		bool b1 = sourcepp::math::isPowerOf2( parent->grabFirst()->getWidth() );
+		bool b2 = sourcepp::math::isPowerOf2( parent->grabFirst()->getHeight() );
 		pResizeCheckbox->setChecked( !( b1 && b2 ) );
 		pResizeCheckbox->setDisabled( !( b1 && b2 ) );
 		if ( !( b1 && b2 ) )
@@ -781,28 +642,21 @@ void GeneralTab::GeneralResize()
 	label1->setText( tr( "Resize Method:" ) );
 	vBLayout->addWidget( label1, 1, 0, Qt::AlignLeft );
 	pResizeMethodCombo = new QComboBox( this );
-	pResizeMethodCombo->addItem( tr( "Nearest Power Of 2" ), (int)RESIZE_NEAREST_POWER2 );
-	pResizeMethodCombo->addItem( tr( "Biggest Power Of 2" ), (int)RESIZE_BIGGEST_POWER2 );
-	pResizeMethodCombo->addItem( tr( "Smallest Power Of 2" ), (int)RESIZE_SMALLEST_POWER2 );
+	pResizeMethodCombo->addItem( tr( "Nearest Power Of 2" ), (int)vtfpp::ImageConversion::ResizeMethod::POWER_OF_TWO_NEAREST );
+	pResizeMethodCombo->addItem( tr( "Biggest Power Of 2" ), (int)vtfpp::ImageConversion::ResizeMethod::POWER_OF_TWO_BIGGER );
+	pResizeMethodCombo->addItem( tr( "Smallest Power Of 2" ), (int)vtfpp::ImageConversion::ResizeMethod::POWER_OF_TWO_SMALLER );
 	pResizeMethodCombo->setCurrentIndex( 1 );
 	vBLayout->addWidget( pResizeMethodCombo, 1, 1, Qt::AlignRight );
 	auto label2 = new QLabel();
 	label2->setText( tr( "Resize Filter:" ) );
 	vBLayout->addWidget( label2, 2, 0, Qt::AlignLeft );
 	pResizeFilterCombo = new QComboBox( this );
-	pResizeFilterCombo->addItem( tr( "Box" ), (int)MIPMAP_FILTER_BOX );
-	pResizeFilterCombo->addItem( tr( "Triangle" ), (int)MIPMAP_FILTER_TRIANGLE );
-	pResizeFilterCombo->addItem( tr( "Quadratic" ), (int)MIPMAP_FILTER_QUADRATIC );
-	pResizeFilterCombo->addItem( tr( "Cubic" ), (int)MIPMAP_FILTER_CUBIC );
-	pResizeFilterCombo->addItem( tr( "Catrom" ), (int)MIPMAP_FILTER_CATROM );
-	pResizeFilterCombo->addItem( tr( "Mitchell" ), (int)MIPMAP_FILTER_MITCHELL );
-	pResizeFilterCombo->addItem( tr( "Gaussian" ), (int)MIPMAP_FILTER_GAUSSIAN );
-	pResizeFilterCombo->addItem( tr( "Sine Cardinal" ), (int)MIPMAP_FILTER_SINC );
-	pResizeFilterCombo->addItem( tr( "Bessel" ), (int)MIPMAP_FILTER_BESSEL );
-	pResizeFilterCombo->addItem( tr( "Hanning" ), (int)MIPMAP_FILTER_HANNING );
-	pResizeFilterCombo->addItem( tr( "Hamming" ), (int)MIPMAP_FILTER_HAMMING );
-	pResizeFilterCombo->addItem( tr( "Blackman" ), (int)MIPMAP_FILTER_BLACKMAN );
-	pResizeFilterCombo->addItem( tr( "Kaiser" ), (int)MIPMAP_FILTER_KAISER );
+	pResizeFilterCombo->addItem( tr( "Default" ), (int)vtfpp::ImageConversion::ResizeFilter::DEFAULT );
+	pResizeFilterCombo->addItem( tr( "Bi-linear" ), (int)vtfpp::ImageConversion::ResizeFilter::BILINEAR );
+	pResizeFilterCombo->addItem( tr( "Catmullrom" ), (int)vtfpp::ImageConversion::ResizeFilter::CATMULLROM );
+	pResizeFilterCombo->addItem( tr( "Cubic BSpline" ), (int)vtfpp::ImageConversion::ResizeFilter::CUBIC_BSPLINE );
+	pResizeFilterCombo->addItem( tr( "Mitchell" ), (int)vtfpp::ImageConversion::ResizeFilter::MITCHELL );
+	pResizeFilterCombo->addItem( tr( "Box" ), (int)vtfpp::ImageConversion::ResizeFilter::BOX );
 	vBLayout->addWidget( pResizeFilterCombo, 2, 1, Qt::AlignRight );
 	pClampCheckbox = new QCheckBox( this );
 	pClampCheckbox->setText( tr( "Clamp" ) );
@@ -883,19 +737,12 @@ void GeneralTab::GeneralMipMaps()
 	vBLayout->addWidget( label1, 1, 0, Qt::AlignLeft );
 
 	pMipmapFilterCombo = new QComboBox( this );
-	pMipmapFilterCombo->addItem( tr( "Box" ), (int)MIPMAP_FILTER_BOX );
-	pMipmapFilterCombo->addItem( tr( "Triangle" ), (int)MIPMAP_FILTER_TRIANGLE );
-	pMipmapFilterCombo->addItem( tr( "Quadratic" ), (int)MIPMAP_FILTER_QUADRATIC );
-	pMipmapFilterCombo->addItem( tr( "Cubic" ), (int)MIPMAP_FILTER_CUBIC );
-	pMipmapFilterCombo->addItem( tr( "Catrom" ), (int)MIPMAP_FILTER_CATROM );
-	pMipmapFilterCombo->addItem( tr( "Mitchell" ), (int)MIPMAP_FILTER_MITCHELL );
-	pMipmapFilterCombo->addItem( tr( "Gaussian" ), (int)MIPMAP_FILTER_GAUSSIAN );
-	pMipmapFilterCombo->addItem( tr( "Sine Cardinal" ), (int)MIPMAP_FILTER_SINC );
-	pMipmapFilterCombo->addItem( tr( "Bessel" ), (int)MIPMAP_FILTER_BESSEL );
-	pMipmapFilterCombo->addItem( tr( "Hanning" ), (int)MIPMAP_FILTER_HANNING );
-	pMipmapFilterCombo->addItem( tr( "Hamming" ), (int)MIPMAP_FILTER_HAMMING );
-	pMipmapFilterCombo->addItem( tr( "Blackman" ), (int)MIPMAP_FILTER_BLACKMAN );
-	pMipmapFilterCombo->addItem( tr( "Kaiser" ), (int)MIPMAP_FILTER_KAISER );
+	pMipmapFilterCombo->addItem( tr( "Default" ), (int)vtfpp::ImageConversion::ResizeFilter::DEFAULT );
+	pMipmapFilterCombo->addItem( tr( "Bi-linear" ), (int)vtfpp::ImageConversion::ResizeFilter::BILINEAR );
+	pMipmapFilterCombo->addItem( tr( "Catmullrom" ), (int)vtfpp::ImageConversion::ResizeFilter::CATMULLROM );
+	pMipmapFilterCombo->addItem( tr( "Cubic BSpline" ), (int)vtfpp::ImageConversion::ResizeFilter::CUBIC_BSPLINE );
+	pMipmapFilterCombo->addItem( tr( "Mitchell" ), (int)vtfpp::ImageConversion::ResizeFilter::MITCHELL );
+	pMipmapFilterCombo->addItem( tr( "Box" ), (int)vtfpp::ImageConversion::ResizeFilter::BOX );
 	vBLayout->addWidget( pMipmapFilterCombo, 1, 1, Qt::AlignRight );
 
 	label1->setDisabled( true );
@@ -928,29 +775,6 @@ void GeneralTab::GeneralCustomMipmaps()
 
 	auto parent = dynamic_cast<VTFEImport *>( this->parent() );
 
-	if ( !parent->imageList.isEmpty() )
-	{
-		vlUInt maxCubemaps = VTFLib::CVTFFile::ComputeMipmapCount( parent->imageList[0]->getWidth(), parent->imageList[0]->getHeight(), 1 );
-
-		for ( int i = 1; i < maxCubemaps; i++ )
-		{
-			vlUInt uiMipWidth, uiMipHeight, uiMipDepth;
-			VTFLib::CVTFFile::ComputeMipmapDimensions( parent->imageList[0]->getWidth(), parent->imageList[0]->getHeight(), 1, i, uiMipWidth, uiMipHeight, uiMipDepth );
-			auto mipMapButton = new QPushButton( QApplication::style()->standardIcon( QStyle::SP_FileIcon ), QString::number( uiMipWidth ) + " X " + QString::number( uiMipHeight ) );
-			mipMapButton->setMinimumHeight( 24 );
-
-			connect( mipMapButton, &QPushButton::clicked, this, []() {
-
-			} );
-
-			pMipMapDialogLayout->addWidget( mipMapButton );
-		}
-	}
-	else
-	{
-		vBoxCustomMipMaps->setDisabled( true );
-	}
-
 	auto pFrameBox = new QSpinBox( pMipMapScrollArea );
 	pFrameBox->setPrefix( "Frame: " );
 	vBLayout->addWidget( pFrameBox, 0, 0 );
@@ -962,6 +786,42 @@ void GeneralTab::GeneralCustomMipmaps()
 	vBLayout->addWidget( pSliceBox, 0, 2 );
 
 	pMipMapScrollArea->setWidget( pMipMapScrollAreaContent );
+
+	if ( !parent->imageList.empty() )
+	{
+		uint32_t maxCubemaps = vtfpp::ImageDimensions::getRecommendedMipCountForDims( parent->grabFirst()->getFormat(), parent->grabFirst()->getWidth(), parent->grabFirst()->getHeight() );
+
+		for ( int i = 1; i < maxCubemaps; i++ )
+		{
+			uint32_t uiMipWidth, uiMipHeight;
+			uiMipWidth = vtfpp::ImageDimensions::getMipDim( i, parent->grabFirst()->getWidth() );
+			uiMipHeight = vtfpp::ImageDimensions::getMipDim( i, parent->grabFirst()->getHeight() );
+			auto mipMapButton = new QPushButton( QApplication::style()->standardIcon( QStyle::SP_FileIcon ), QString::number( uiMipWidth ) + " X " + QString::number( uiMipHeight ) );
+			mipMapButton->setMinimumHeight( 24 );
+
+			connect( mipMapButton, &QPushButton::clicked, this, [&, parent, pFrameBox, pFaceBox, pSliceBox, i, uiMipHeight, uiMipWidth]()
+					 {
+						 auto recentPaths = Options::get<QStringList>( STR_OPEN_RECENT );
+
+						 auto imagePath = QFileDialog::getOpenFileName( this, "Open Custom Mipmap", recentPaths.last(), ui::CMainWindow::supportedWildcardImageList.join( " " ) );
+						 if ( imagePath.isEmpty() || !QFile( imagePath ).exists() )
+							 return;
+
+						 parent->AddImage( imagePath );
+						 // auto data = parent->imageList[{ static_cast<uint16_t>( pFrameBox->value() ), static_cast<uint8_t>( pFaceBox->value() ), static_cast<uint16_t>( pSliceBox->value() ), 0 }];
+
+						 //						 auto newRawData = vtfpp::ImageConversion::resizeImageData( data->getData(), data->getFormat(), data->getWidth(), uiMipWidth, data->getHeight(), uiMipHeight, false, vtfpp::ImageConversion::ResizeFilter::DEFAULT );
+						 //						 parent->imageList[{ static_cast<uint16_t>( pFrameBox->value() ), static_cast<uint8_t>( pFaceBox->value() ), static_cast<uint16_t>( pSliceBox->value() ), static_cast<uint8_t>( i ) }] = new VTFEImageContainer( newRawData.data(), uiMipWidth, uiMipHeight, data->getFormat() );
+						 auto asda = 0;
+					 } );
+
+			pMipMapDialogLayout->addWidget( mipMapButton );
+		}
+	}
+	else
+	{
+		vBoxCustomMipMaps->setDisabled( true );
+	}
 
 	vBLayout->addWidget( pMipMapScrollArea, 1, 0, 1, 3 );
 
@@ -1079,12 +939,12 @@ void AdvancedTab::VersionMenu()
 	vBLayout->addWidget( label1, 0, 0, Qt::AlignLeft );
 	pVtfVersionBox = new QComboBox( this );
 #ifdef CHAOS_INITIATIVE
-	for ( int i = 0; i <= VTF_MINOR_VERSION; i++ )
+	for ( int i = 0; i <= 6; i++ )
 #else
 	for ( int i = 0; i <= 5; i++ )
 #endif
 	{
-		pVtfVersionBox->addItem( QString::number( VTF_MAJOR_VERSION ) + "." + QString::number( i ), i );
+		pVtfVersionBox->addItem( QString::number( 7 ) + "." + QString::number( i ), i );
 	}
 	pVtfVersionBox->setCurrentIndex( pVtfVersionBox->count() - 2 );
 	vBLayout->addWidget( pVtfVersionBox, 0, 1, Qt::AlignRight );
@@ -1544,4 +1404,120 @@ void ResourceTab::InformationResource()
 		} );
 
 	pMainLayout->addWidget( vBoxInformationResource, 1, 0, Qt::AlignLeft );
+}
+
+QListWidget *groupBoxListWidget( QGroupBox *box )
+{
+	auto layout = new QVBoxLayout( box );
+	auto list = new ImageProcessor::QMultiDragListWidget( box );
+	list->setDragEnabled( true );
+	list->setAcceptDrops( true );
+	layout->addWidget( list );
+	return list;
+}
+
+ImageProcessor::ImageProcessor( VTFEImport *parent ) :
+	QDialog( parent )
+{
+	auto layout = new QGridLayout( this );
+
+	auto zeroImageBox = new QGroupBox( "Base", this );
+	auto zeroImageTab = groupBoxListWidget( zeroImageBox );
+	zeroImageTab->setMaximumHeight( 24 );
+	auto frameZero = parent->imageList[0];
+	auto item = new QListWidgetItem( frameZero->getPath() );
+	item->setData( Qt::UserRole, 0 );
+	zeroImageTab->addItem( item );
+	layout->addWidget( zeroImageBox, 0, 0, 1, 2 );
+	auto frameBox = new QGroupBox( "Frames", this );
+	auto frameTab = groupBoxListWidget( frameBox );
+	layout->addWidget( frameBox, 1, 0 );
+	auto faceBox = new QGroupBox( "Faces", this );
+	auto faceTab = groupBoxListWidget( faceBox );
+	layout->addWidget( faceBox, 1, 1 );
+	auto sliceBox = new QGroupBox( "Slices", this );
+	auto sliceTab = groupBoxListWidget( sliceBox );
+	layout->addWidget( sliceBox, 2, 0 );
+	//	layout->addWidget( ImageProcessorCustomMipmaps(), 2, 1 );
+}
+
+// QGroupBox *ImageProcessor::ImageProcessorCustomMipmaps()
+//{
+//	vBoxCustomMipMaps = new QGroupBox( tr( "Custom mipmaps" ), this );
+//
+//	auto vBLayout = new QGridLayout( vBoxCustomMipMaps );
+//
+//	auto pMipMapScrollArea = new QScrollArea( vBoxCustomMipMaps );
+//	pMipMapScrollArea->setWidgetResizable( true );
+//
+//	auto pMipMapScrollAreaContent = new QWidget();
+//
+//	auto pMipMapDialogLayout = new QVBoxLayout( pMipMapScrollAreaContent );
+//
+//	auto parent = dynamic_cast<VTFEImport *>( this->parent() );
+//
+//	auto pFrameBox = new QSpinBox( pMipMapScrollArea );
+//	pFrameBox->setPrefix( "Frame: " );
+//	vBLayout->addWidget( pFrameBox, 0, 0 );
+//	auto pFaceBox = new QSpinBox( pMipMapScrollArea );
+//	pFaceBox->setPrefix( "Face: " );
+//	vBLayout->addWidget( pFaceBox, 0, 1 );
+//	auto pSliceBox = new QSpinBox( pMipMapScrollArea );
+//	pSliceBox->setPrefix( "Slice: " );
+//	vBLayout->addWidget( pSliceBox, 0, 2 );
+//
+//	pMipMapScrollArea->setWidget( pMipMapScrollAreaContent );
+//
+//	if ( !parent->imageList.empty() )
+//	{
+//		uint32_t maxCubemaps = vtfpp::ImageDimensions::getRecommendedMipCountForDims( parent->grabFirst()->getFormat(), parent->grabFirst()->getWidth(), parent->grabFirst()->getHeight() );
+//
+//		for ( int i = 1; i < maxCubemaps; i++ )
+//		{
+//			uint32_t uiMipWidth, uiMipHeight;
+//			uiMipWidth = vtfpp::ImageDimensions::getMipDim( i, parent->grabFirst()->getWidth() );
+//			uiMipHeight = vtfpp::ImageDimensions::getMipDim( i, parent->grabFirst()->getHeight() );
+//			auto mipMapButton = new QPushButton( QApplication::style()->standardIcon( QStyle::SP_FileIcon ), QString::number( uiMipWidth ) + " X " + QString::number( uiMipHeight ) );
+//			mipMapButton->setMinimumHeight( 24 );
+//
+//			connect( mipMapButton, &QPushButton::clicked, this, [&, parent, pFrameBox, pFaceBox, pSliceBox, i, uiMipHeight, uiMipWidth]()
+//					 {
+//						 auto recentPaths = Options::get<QStringList>( STR_OPEN_RECENT );
+//
+//						 auto imagePath = QFileDialog::getOpenFileName( this, "Open Custom Mipmap", recentPaths.last(), ui::CMainWindow::supportedWildcardImageList.join( " " ) );
+//						 if ( imagePath.isEmpty() || !QFile( imagePath ).exists() )
+//							 return;
+//
+//						 parent->AddImage( imagePath, i );
+//						 // auto data = parent->imageList[{ static_cast<uint16_t>( pFrameBox->value() ), static_cast<uint8_t>( pFaceBox->value() ), static_cast<uint16_t>( pSliceBox->value() ), 0 }];
+//
+//						 //						 auto newRawData = vtfpp::ImageConversion::resizeImageData( data->getData(), data->getFormat(), data->getWidth(), uiMipWidth, data->getHeight(), uiMipHeight, false, vtfpp::ImageConversion::ResizeFilter::DEFAULT );
+//						 //						 parent->imageList[{ static_cast<uint16_t>( pFrameBox->value() ), static_cast<uint8_t>( pFaceBox->value() ), static_cast<uint16_t>( pSliceBox->value() ), static_cast<uint8_t>( i ) }] = new VTFEImageContainer( newRawData.data(), uiMipWidth, uiMipHeight, data->getFormat() );
+//						 auto asda = 0;
+//					 } );
+//
+//			pMipMapDialogLayout->addWidget( mipMapButton );
+//		}
+//	}
+//	else
+//	{
+//		vBoxCustomMipMaps->setDisabled( true );
+//	}
+//
+//	vBLayout->addWidget( pMipMapScrollArea, 1, 0, 1, 3 );
+// }
+void ImageProcessor::QMultiDragListWidget::dragMoveEvent( QDragMoveEvent *e )
+{
+	//	if ( base && this->count() < 1 )
+	e->accept();
+}
+void ImageProcessor::QMultiDragListWidget::dropEvent( QDropEvent *event )
+{
+	auto widget = reinterpret_cast<QMultiDragListWidget *>( event->source() );
+	if ( widget && base )
+	{
+		if ( widget->count() > 1 )
+			return event->ignore();
+	}
+	event->accept();
 }

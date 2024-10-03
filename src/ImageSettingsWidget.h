@@ -14,7 +14,7 @@ class ImageSettingsWidget : public QWidget
 public:
 	ImageSettingsWidget( ImageViewWidget *viewer, QWidget *parent = nullptr );
 
-	void set_vtf( VTFLib::CVTFFile *file );
+	void set_vtf( vtfpp::VTF *file );
 
 	void set_frame( int frame )
 	{
@@ -37,7 +37,7 @@ private:
 	QSpinBox *mip_ = nullptr;
 	QSpinBox *startFrame_ = nullptr;
 	QPushButton *animateButton;
-	VTFLib::CVTFFile *file_ = nullptr;
-	std::unordered_map<uint32_t, QCheckBox *> flagChecks_;
+	vtfpp::VTF *file_ = nullptr;
+	std::unordered_map<vtfpp::VTF::Flags, QCheckBox *> flagChecks_;
 	bool settingFile_ = false;
 };

@@ -1,5 +1,4 @@
 #pragma once
-#include "../libs/VTFLib/VTFLib/VTFLib.h"
 
 #include <QOpenGLBuffer>
 #include <QOpenGLFunctions>
@@ -9,6 +8,7 @@
 #include <QOpenGLTexture>
 #include <QOpenGLWidget>
 #include <QWidget>
+#include <vtfpp/vtfpp.h>
 
 enum ColorSelection
 {
@@ -41,7 +41,7 @@ public:
 
 	void timerEvent( QTimerEvent *event ) override;
 
-	void set_vtf( VTFLib::CVTFFile *file );
+	void set_vtf( vtfpp::VTF *file );
 
 	void initializeGL() override;
 
@@ -156,6 +156,17 @@ public:
 		this->update();
 	}
 
+	int getHDRGamma()
+	{
+		return gamma_;
+	}
+
+	void setHDRGamma( int gamma )
+	{
+		gamma_ = gamma;
+		this->update();
+	}
+
 	void startAnimation( int fps );
 
 	void stopAnimating();
@@ -165,7 +176,7 @@ private:
 
 	QOpenGLTexture texture { QOpenGLTexture::Target2D };
 	QOpenGLShaderProgram *shaderProgram;
-	VTFLib::CVTFFile *file_ = nullptr;
+	vtfpp::VTF *file_ = nullptr;
 
 	bool m_animating = false;
 
@@ -182,12 +193,14 @@ private:
 	int rgba_ = 16;
 	float xOffset_ = 0;
 	float yOffset_ = 0;
+	int gamma_ = 220;
 	bool hasRed_ = true;
 	bool hasGreen_ = true;
 	bool hasBlue_ = true;
 	bool hasAlpha_ = true;
 
 	int animationTimer_ = -1;
+	bool animateReverse_;
 
 	bool m_isCTRLHeld = false;
 

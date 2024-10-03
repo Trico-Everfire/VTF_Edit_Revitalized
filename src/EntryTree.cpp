@@ -1,7 +1,7 @@
 #include "EntryTree.h"
 
-#include "vpkedit/PackFile.h"
-#include "vpkedit/format/VPK.h"
+#include "vpkpp/PackFile.h"
+#include "vpkpp/format/VPK.h"
 
 #include <QFileSystemModel>
 #include <QStringView>
@@ -113,7 +113,7 @@ void TreeItem::setExpandable( bool expandable )
 {
 	m_expandable = expandable;
 }
-void TreeItem::setPakfile( std::unique_ptr<vpkedit::PackFile> &&pak )
+void TreeItem::setPakfile( std::unique_ptr<vpkpp::PackFile> &&pak )
 {
 	m_vpkFile = std::move( pak );
 }
@@ -121,7 +121,7 @@ bool TreeItem::hasPakfile()
 {
 	return !!m_vpkFile;
 }
-vpkedit::PackFile *TreeItem::pakFile() const
+vpkpp::PackFile *TreeItem::pakFile() const
 {
 	return m_vpkFile.get();
 }
@@ -152,7 +152,7 @@ void TreeModel::fillItem( TreeItem *item )
 	{
 		if ( !item->hasPakfile() )
 		{
-			auto vpk = vpkedit::VPK::open( item->getPath().toStdString() );
+			auto vpk = vpkpp::VPK::open( item->getPath().toStdString() );
 			if ( !vpk )
 			{
 				// TODO: warning message.
@@ -162,50 +162,54 @@ void TreeModel::fillItem( TreeItem *item )
 		}
 
 		std::map<QString, TreeItem *> pList {};
-		for ( const auto &[directory, files] : item->pakFile()->getBakedEntries() )
-		{
-			TreeItem *current = item;
-			QString pathString {};
-			for ( const auto &curr : QString( directory.data() ).split( "/" ) )
-			{
-				pathString += curr;
-				if ( !pList.contains( pathString ) )
-				{
-					//					pList.emplace(pathString);
-					auto uniqueTreeItem = std::make_unique<TreeItem>( QVariantList() << curr, current, true );
-					uniqueTreeItem->setDisplayType( TreeItem::DISPLAY_FOLDER );
-					//					uniqueTreeItem->setPath( iter.fileInfo().canonicalFilePath() );
-					pList.insert( { pathString, uniqueTreeItem.get() } );
-					current->appendChild( std::move( uniqueTreeItem ) );
-				}
-				current = pList[pathString];
-			}
-			// TODO: file insert
+		item->pakFile()->runForAllEntries( []( std::string p, vpkpp::Entry entry ) {
 
-			for ( const vpkedit::Entry &file : files )
-			{
-				if ( file.getExtension() != "vpk" &&
-					 file.getExtension() != "vtf" &&
-					 file.getExtension() != "ttf" &&
-					 file.getExtension() != "otf" &&
-					 !supportedImageList.contains( file.getExtension().c_str() ) )
-				{
-					continue;
-				}
-
-				auto uniqueTreeItem = std::make_unique<TreeItem>( QVariantList() << file.getFilename().c_str(), current, false );
-
-				uniqueTreeItem->setEntry( file.path );
-				if ( file.getExtension() == "vtf" )
-					uniqueTreeItem->setDisplayType( TreeItem::DISPLAY_VTF );
-				if ( file.getExtension() == "ttf" || file.getExtension() == "otf" )
-					uniqueTreeItem->setDisplayType( TreeItem::DISPLAY_FONT );
-				if ( supportedImageList.contains( file.getExtension().c_str() ) )
-					uniqueTreeItem->setDisplayType( TreeItem::DISPLAY_IMAGE );
-				uniqueTreeItem->setItemType( TreeItem::VPK_INTERNAL );
-				current->appendChild( std::move( uniqueTreeItem ) );
-			}
-		}
+		} );
+		//		for ( const auto &[directory, files] : item->pakFile()->getBakedEntries() )
+		//		{
+		//			TreeItem *current = item;
+		//
+		//			QString pathString {};
+		//			for ( const auto &curr : QString( directory.data() ).split( "/" ) )
+		//			{
+		//				pathString += curr;
+		//				if ( !pList.contains( pathString ) )
+		//				{
+		//					//					pList.emplace(pathString);
+		//					auto uniqueTreeItem = std::make_unique<TreeItem>( QVariantList() << curr, current, true );
+		//					uniqueTreeItem->setDisplayType( TreeItem::DISPLAY_FOLDER );
+		//					//					uniqueTreeItem->setPath( iter.fileInfo().canonicalFilePath() );
+		//					pList.insert( { pathString, uniqueTreeItem.get() } );
+		//					current->appendChild( std::move( uniqueTreeItem ) );
+		//				}
+		//				current = pList[pathString];
+		//			}
+		//			// TODO: file insert
+		//
+		//			for ( const vpkpp::Entry &file : files )
+		//			{
+		//				if ( file.getExtension() != "vpk" &&
+		//					 file.getExtension() != "vtf" &&
+		//					 file.getExtension() != "ttf" &&
+		//					 file.getExtension() != "otf" &&
+		//					 !supportedImageList.contains( file.getExtension().c_str() ) )
+		//				{
+		//					continue;
+		//				}
+		//
+		//				auto uniqueTreeItem = std::make_unique<TreeItem>( QVariantList() << file.getFilename().c_str(), current, false );
+		//
+		//				uniqueTreeItem->setEntry( file.path );
+		//				if ( file.getExtension() == "vtf" )
+		//					uniqueTreeItem->setDisplayType( TreeItem::DISPLAY_VTF );
+		//				if ( file.getExtension() == "ttf" || file.getExtension() == "otf" )
+		//					uniqueTreeItem->setDisplayType( TreeItem::DISPLAY_FONT );
+		//				if ( supportedImageList.contains( file.getExtension().c_str() ) )
+		//					uniqueTreeItem->setDisplayType( TreeItem::DISPLAY_IMAGE );
+		//				uniqueTreeItem->setItemType( TreeItem::VPK_INTERNAL );
+		//				current->appendChild( std::move( uniqueTreeItem ) );
+		//			}
+		//		}
 
 		return;
 	}
@@ -245,7 +249,7 @@ void TreeModel::fillItem( TreeItem *item )
 				file.open( QFile::ReadOnly );
 				std::uint32_t signature = *reinterpret_cast<std::uint32_t *>( file.read( 4 ).data() );
 				file.close();
-				if ( signature != vpkedit::VPK_SIGNATURE )
+				if ( signature != vpkpp::VPK_SIGNATURE )
 				{
 					iter.next();
 					continue;

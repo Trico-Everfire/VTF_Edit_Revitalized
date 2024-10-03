@@ -1,9 +1,8 @@
 #pragma once
 
-#include "vpkedit/PackFile.h"
-
 #include <QFileSystemModel>
 #include <QTreeWidget>
+#include <vpkpp/PackFile.h>
 class EntryTree : public QTreeView
 {
 	Q_OBJECT
@@ -51,8 +50,8 @@ public:
 	void setPath( const QString &path );
 	QString getPath() const;
 	bool hasPakfile();
-	void setPakfile( std::unique_ptr<vpkedit::PackFile> &&pak );
-	vpkedit::PackFile *pakFile() const;
+	void setPakfile( std::unique_ptr<vpkpp::PackFile> &&pak );
+	vpkpp::PackFile *pakFile() const;
 	std::string getEntry();
 	void setEntry( std::string entryPath );
 
@@ -62,7 +61,7 @@ private:
 	std::vector<std::unique_ptr<TreeItem>> m_childItems;
 	QVariantList m_itemData;
 	TreeItem *m_parentItem;
-	std::unique_ptr<vpkedit::PackFile> m_vpkFile;
+	std::unique_ptr<vpkpp::PackFile> m_vpkFile;
 	std::string m_entry;
 	bool m_expandable;
 	DataDisplayType m_displayType;

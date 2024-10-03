@@ -59,7 +59,7 @@ void ImageSettingsWidget::setup_ui( ImageViewWidget *viewer )
 		{
 			if ( !file_ )
 				return;
-			file_->SetStartFrame( startFrame_->value() );
+			file_->setStartFrame( startFrame_->value() );
 			if ( !settingFile_ )
 				emit fileModified();
 		} );
@@ -67,7 +67,7 @@ void ImageSettingsWidget::setup_ui( ImageViewWidget *viewer )
 	layout->addWidget( new QLabel( "Start Frame:" ), row, 0 );
 	++row;
 	QSpinBox *frameBox = new QSpinBox( this );
-	frameBox->setMinimum( 1 );
+	frameBox->setMinimum( -144 );
 	frameBox->setValue( 24 );
 	frameBox->setMaximum( 144 ); // I don't think you can even run Source even supports 144
 	layout->addWidget( frameBox, row, 1 );
@@ -81,11 +81,13 @@ void ImageSettingsWidget::setup_ui( ImageViewWidget *viewer )
 				 if ( !file_ )
 					 return;
 
-				 if ( file_->GetFrameCount() <= 1 )
+				 if ( file_->getFrameCount() <= 1 )
 					 return; // Do not animate when we do not have frames to animate, lol.
 
 				 if ( animateButton->text() == "Animate" )
 				 {
+					 if ( frameBox->value() == 0 )
+						 return;
 					 viewer->startAnimation( frameBox->value() );
 					 animateButton->setText( "Stop" );
 				 }
@@ -107,14 +109,17 @@ void ImageSettingsWidget::setup_ui( ImageViewWidget *viewer )
 	for ( auto &flag : TEXTURE_FLAGS )
 	{
 		auto *check = new QCheckBox( flag.name, this );
-		check->setCheckable( true );
+		check->setCheckable( false );
 		connect(
 			check, &QCheckBox::stateChanged,
 			[this, flag]( int newState )
 			{
 				if ( !file_ )
 					return;
-				file_->SetFlag( (VTFImageFlag)flag.flag, newState );
+				if ( newState )
+					file_->addFlags( flag.flag );
+				else
+					file_->removeFlags( flag.flag );
 				if ( !settingFile_ )
 					emit fileModified();
 			} );
@@ -124,9 +129,16 @@ void ImageSettingsWidget::setup_ui( ImageViewWidget *viewer )
 
 	flagsScroll->setWidget( flagsGroup );
 	layout->addWidget( flagsScroll, row, 0, 1, 2 );
+
+	// Set the flags
+	for ( auto &f : TEXTURE_FLAGS )
+	{
+		auto check = flagChecks_.find( f.flag )->second;
+		check->setDisabled( vtfpp::VTF::FLAG_MASK_GENERATED & f.flag );
+	}
 }
 
-void ImageSettingsWidget::set_vtf( VTFLib::CVTFFile *file )
+void ImageSettingsWidget::set_vtf( vtfpp::VTF *file )
 {
 	// Hack to ensure we don't emit fileModified when setting defaults
 	settingFile_ = true;
@@ -154,26 +166,26 @@ void ImageSettingsWidget::set_vtf( VTFLib::CVTFFile *file )
 	}
 
 	file_ = file;
-	startFrame_->setValue( file->GetStartFrame() );
+	startFrame_->setValue( file->getStartFrame() );
 	mip_->setValue( 0 );
-	frame_->setValue( file->GetStartFrame() );
+	frame_->setValue( file->getStartFrame() );
 	face_->setValue( 0 );
 
 	// Configure ranges
-	mip_->setRange( 0, file->GetMipmapCount() );
-	frame_->setRange( 0, file->GetFrameCount() - 1 );
-	face_->setRange( 1, file->GetFaceCount() );
-	startFrame_->setRange( 1, file->GetFrameCount() );
+	mip_->setRange( 0, file->getMipCount() - 1 );
+	frame_->setRange( 0, file->getFrameCount() - 1 );
+	face_->setRange( 1, file->getFaceCount() );
+	startFrame_->setRange( 1, file->getFrameCount() );
 
 	animateButton->setText( "Animate" ); // Tab switching stops animation, this reflects that.
 
 	// Set the flags
-	uint32_t flags = file->GetFlags();
+	vtfpp::VTF::Flags flags = file->getFlags();
 	for ( auto &f : TEXTURE_FLAGS )
 	{
 		auto check = flagChecks_.find( f.flag )->second;
-		check->setChecked( !!( flags & f.flag ) );
 		check->setCheckable( true );
+		check->setChecked( f.flag & flags );
 	}
 
 	settingFile_ = false;

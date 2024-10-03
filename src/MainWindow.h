@@ -21,11 +21,12 @@ namespace ui
 	class CMainWindow : public QMainWindow
 	{
 		Q_OBJECT
+	public:
+		const inline static QStringList supportedWildcardImageList = { "*.bmp", "*.gif", "*.tga", "*.png", "*.jpg", "*.jpeg", "*.tif", "*.tiff", "*.hdr" };
+		const inline static QStringList supportedImageList = { "bmp", "gif", "tga", "png", "jpg", "jpeg", "tif", "tiff", "hdr" };
 
-		const QStringList supportedWildcardImageList = { "*.bmp", "*.gif", "*.tga", "*.png", "*.jpg", "*.jpeg", "*.tif", "*.tiff", "*.hdr" };
-		const QStringList supportedImageList = { "bmp", "gif", "tga", "png", "jpg", "jpeg", "tif", "tiff", "hdr" };
-
-		QHash<intptr_t, VTFLib::CVTFFile *> vtfWidgetList;
+	private:
+		QHash<intptr_t, vtfpp::VTF *> vtfWidgetList;
 
 	public:
 		CMainWindow();
@@ -45,7 +46,7 @@ namespace ui
 		QWidget *m_pScrollWidget;
 		QScrollBar *m_pHorizontalScrollBar;
 		QScrollBar *m_pVerticalScrollBar;
-		static VTFLib::CVTFFile *getVTFFromVTFFile( const char *path );
+		static vtfpp::VTF *getVTFFromVTFFile( const char *path );
 		void addVTFFromPathToTab( const QString &path );
 		void removeVTFTab( int index );
 		void setupMenuBar();
@@ -53,7 +54,7 @@ namespace ui
 		void importFromFile();
 		void generateVTFFromImage( const QString &filePath );
 		void generateVTFFromImages( QStringList filePaths );
-		void addVTFToTab( VTFLib::CVTFFile *pVTF, const QString &name );
+		void addVTFToTab( vtfpp::VTF *pVTF, const QString &name );
 		void NewVTFFromVTF( const QString &filePath );
 		void tabChanged( int index );
 		void exportVTFToFile();

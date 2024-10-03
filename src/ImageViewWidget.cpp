@@ -9,17 +9,25 @@
 
 #define remap( value, low1, high1, low2, high2 ) ( low2 + ( value - low1 ) * ( high2 - low2 ) / ( high1 - low1 ) )
 
-using namespace VTFLib;
-
 void ImageViewWidget::Animate()
 {
 	if ( !file_ )
 		return;
 
-	if ( frame_ < file_->GetFrameCount() )
-		frame_++;
+	if ( !animateReverse_ )
+	{
+		if ( frame_ < file_->getFrameCount() - 1 )
+			frame_++;
+		else
+			frame_ = 0;
+	}
 	else
-		frame_ = 0;
+	{
+		if ( frame_ > 1 )
+			frame_--;
+		else
+			frame_ = file_->getFrameCount() - 1;
+	}
 	this->update();
 	emit animated( frame_ );
 }
@@ -33,7 +41,8 @@ ImageViewWidget::ImageViewWidget( QWidget *pParent ) :
 
 void ImageViewWidget::startAnimation( int fps )
 {
-	animationTimer_ = startTimer( 1000 / fps );
+	animateReverse_ = fps < 1;
+	animationTimer_ = startTimer( 1000 / std::abs( fps ) );
 }
 
 void ImageViewWidget::stopAnimating()
@@ -45,7 +54,7 @@ void ImageViewWidget::stopAnimating()
 	}
 }
 
-void ImageViewWidget::set_vtf( VTFLib::CVTFFile *file )
+void ImageViewWidget::set_vtf( vtfpp::VTF *file )
 {
 	file_ = file;
 	// Force refresh of data
@@ -150,12 +159,11 @@ void ImageViewWidget::paintGL()
 
 	projectionMatrix.ortho( -1 * xSpan, xSpan, -1 * ySpan, ySpan, -0, 1 );
 
-	int AspectRatioLocation = shaderProgram->uniformLocation( "ProjMat" ); // glGetUniformLocation( shaderProgram, "RGBA" );
-	shaderProgram->setUniformValue( AspectRatioLocation, projectionMatrix );
-
 	int RGBAProcessing = shaderProgram->uniformLocation( "RGBA" ); // glGetUniformLocation( shaderProgram, "RGBA" );
 
 	shaderProgram->setUniformValue( RGBAProcessing, rgba_ );
+
+	int GammaLocation = shaderProgram->uniformLocation( "gamma" ); // glGetUniformLocation( shaderProgram, "RGBA" );
 
 	float offs = ( 0.5f / aspect );
 	QVector2D offsets = { remap( xOffset_, 0, 4096, offs * ( zoom_ + ( 1 - scalarX ) ), -offs * ( zoom_ + ( 1 - scalarX ) ) ), remap( yOffset_, 0, 4096, -offs * ( zoom_ + ( 1 - scalarY ) ), offs * ( zoom_ + ( 1 - scalarY ) ) ) };
@@ -177,21 +185,39 @@ void ImageViewWidget::paintGL()
 
 	glEnableVertexAttribArray( 2 );
 	glVertexAttribPointer( 2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof( float ), (void *)( 6 * sizeof( float ) ) );
-
 	if ( file_ )
 	{
-		GLuint width, height, whatever;
-		CVTFFile::ComputeMipmapDimensions( file_->GetWidth(), file_->GetHeight(), 1, mip_, width, height, whatever );
-		auto size = CVTFFile::ComputeImageSize( width, height, whatever, IMAGE_FORMAT_RGBA8888 );
-		auto imgData = new vlByte[size];
-		CVTFFile::ConvertToRGBA8888( file_->GetData( frame_, face_, 0, mip_ ), reinterpret_cast<vlByte *>( imgData ), width, height, file_->GetFormat() );
+		GLuint width, height;
+		//		vtfpp::ImageDimensions::CVTFFile::ComputeMipmapDimensions( file_->GetWidth(), file_->GetHeight(), 1, mip_, width, height, whatever );
+		width = vtfpp::ImageDimensions::getMipDim( mip_, file_->getWidth() );
+		height = vtfpp::ImageDimensions::getMipDim( mip_, file_->getHeight() );
+		// auto size = CVTFFile::ComputeImageSize( width, height, whatever, vtfpp::ImageFormat::RGBA8888 );
+		//		auto imgData = new vlByte[size];
+		//		CVTFFile::ConvertToRGBA8888( file_->getImageDataAsRGBA8888( mip_, frame_, face_, 0 ), reinterpret_cast<std::byte *>( imgData ), width, height, file_->GetFormat() );
+		float vtfAspect = (float)width / (float)height;
+		projectionMatrix.setColumn( 0, { projectionMatrix.column( 0 )[0] * vtfAspect, 0, 0, 0 } );
 
-		texture.create();
-		texture.setData( QImage( imgData, width, height, QImage::Format_RGBA8888 ) );
+		if ( vtfpp::ImageFormatDetails::large( file_->getFormat() ) )
+		{
+			auto dat = file_->getImageDataAs( vtfpp::ImageFormat::RGBA32323232F, mip_, frame_, face_ - 1, 0 );
+			texture.create();
+			texture.setSize( width, height, 1 );
+			texture.setFormat( QOpenGLTexture::RGBA32F );
+			texture.allocateStorage();
+			texture.setData( QOpenGLTexture::RGBA, QOpenGLTexture::Float32, dat.data() );
+			shaderProgram->setUniformValue( GammaLocation, (float)getHDRGamma() / 100 );
+		}
+		else
+		{
+			shaderProgram->setUniformValue( GammaLocation, -1.0f );
 
+			auto dat = file_->getImageDataAsRGBA8888( mip_, frame_, face_ - 1, 0 );
+			texture.create();
+			texture.setData( QImage( reinterpret_cast<const uchar *>( dat.data() ), width, height, QImage::Format_RGBA8888 ) );
+		}
 		texture.bind( 0 );
 
-		delete[] imgData;
+		// delete[] imgData;
 	}
 	else
 	{
@@ -200,6 +226,9 @@ void ImageViewWidget::paintGL()
 		texture.setData( QImage( buff, 1, 1, QImage::Format_RGBA8888 ) );
 		texture.bind( 0 );
 	}
+
+	int AspectRatioLocation = shaderProgram->uniformLocation( "ProjMat" ); // glGetUniformLocation( shaderProgram, "RGBA" );
+	shaderProgram->setUniformValue( AspectRatioLocation, projectionMatrix );
 
 	glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_BYTE, nullptr );
 	indexes.release();
