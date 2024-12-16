@@ -14,7 +14,7 @@
 
 <br />
 
-### Strata Initiative:
+### Strata Source Contributors:
 
   <br />
   Supplying Info, Settings, View and Resource widgets
