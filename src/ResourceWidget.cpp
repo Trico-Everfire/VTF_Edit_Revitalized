@@ -56,18 +56,36 @@ void ResourceWidget::set_vtf( vtfpp::VTF *file )
 	//
 	//		auto data = file->GetResourceData( type, size );
 	//
-	//		if ( type != VTF_RSRC_KEY_VALUE_DATA )
-	//		{
-	//			table_->setItem( count, 0, new QTableWidgetItem( GetResourceName( type ) ) );
-	//
-	//			auto typeItem = new QTableWidgetItem( fmt::format( FMT_STRING( "0x{:X}" ), type ).c_str() );
-	//			table_->setItem( count, 1, typeItem );
-	//
-	//			auto sizeItem =
-	//				new QTableWidgetItem( fmt::format( FMT_STRING( "{:d} bytes ({:.2f} KiB)" ), size, size / 1024.f ).c_str() );
-	//			table_->setItem( count, 2, sizeItem );
-	//			count++;
-	//		}
+	int i = 0;
+	for ( auto resource : resources )
+	{
+		if ( resource.type != vtfpp::Resource::TYPE_KEYVALUES_DATA )
+		{
+			table_->setItem( i, 0, new QTableWidgetItem( GetResourceName( resource.type ) ) );
+
+			auto typeItem = new QTableWidgetItem( fmt::format( FMT_STRING( "0x{:X}" ), (uint32_t)resource.type ).c_str() );
+			table_->setItem( i, 1, typeItem );
+
+			uint32_t size = resource.data.size_bytes();
+
+			auto sizeItem =
+				new QTableWidgetItem( fmt::format( FMT_STRING( "{:d} bytes ({:.2f} KiB)" ), size, size / 1024.f ).c_str() );
+			table_->setItem( i, 2, sizeItem );
+			i++;
+		}
+	}
+
+	if ( auto kvResource = file->getResource( vtfpp::Resource::TYPE_KEYVALUES_DATA ) )
+	{
+		auto rawData = kvResource->getDataAsKeyValuesData();
+		auto data = kvpp::KV1( rawData );
+		for ( int j = 0; j < data.getChildCount(); j++, i++ )
+		{
+			// table_->setItem( i, 0, new QTableWidgetItem( "Key Value" ) );
+			table_->setItem( i, 0, new QTableWidgetItem( std::string { data[j].getKey().data(), data[j].getKey().length() }.c_str() ) );
+			table_->setItem( i, 1, new QTableWidgetItem( std::string { data[j].getValue().data(), data[j].getValue().length() }.c_str() ) );
+		}
+	}
 	//		else
 	//		{
 	//			auto pVMTFile = new VTFLib::CVMTFile();

@@ -6,4 +6,5 @@
 	url = https://github.com/ozxybox/SpeedyKeyV.git
 [submodule "libs/sourcepp"]
 	path = libs/sourcepp
-	url = https://github.com/craftablescience/sourcepp.git
+	url = https://github.com/Trico-Everfire/sourcepp.git
+	branch = feat/sht

@@ -1,5 +1,6 @@
 #pragma once
 #include "ImageViewWidget.h"
+#include "VTFEImageContainer.h"
 
 #include <QCheckBox>
 #include <QSpinBox>
@@ -14,13 +15,15 @@ class ImageSettingsWidget : public QWidget
 public:
 	ImageSettingsWidget( ImageViewWidget *viewer, QWidget *parent = nullptr );
 
-	void set_vtf( vtfpp::VTF *file );
+	void set_vtf( const VTFContainer &file );
 
 	void set_frame( int frame )
 	{
 		if ( file_ )
 			frame_->setValue( frame );
 	}
+
+	bool aquireFFPS( int &frame, int &face, int &mip, int &slice );
 
 signals:
 	/**
@@ -37,7 +40,7 @@ private:
 	QSpinBox *mip_ = nullptr;
 	QSpinBox *startFrame_ = nullptr;
 	QPushButton *animateButton;
-	vtfpp::VTF *file_ = nullptr;
+	VTFContainer file_ = { nullptr };
 	std::unordered_map<vtfpp::VTF::Flags, QCheckBox *> flagChecks_;
 	bool settingFile_ = false;
 };

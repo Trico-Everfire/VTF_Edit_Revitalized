@@ -33,6 +33,8 @@ class ImageViewWidget : public QOpenGLWidget,
 		-0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f	  // top left
 	};
 
+	QImage background;
+
 	static constexpr GLbyte texIndeces[] = {
 		0, 1, 2, 2, 3, 0 };
 
@@ -167,6 +169,18 @@ public:
 		this->update();
 	}
 
+	void setSpriteSheet( vtfpp::SpriteImagePositions sheet, bool is )
+	{
+		hasSpriteSheetLocation_ = is;
+		if ( !hasSpriteSheetLocation_ )
+		{
+			update();
+			return;
+		}
+		this->spriteSheet_ = sheet;
+		update();
+	}
+
 	void startAnimation( int fps );
 
 	void stopAnimating();
@@ -184,7 +198,7 @@ private:
 
 	QOpenGLBuffer indexes { QOpenGLBuffer::Type::IndexBuffer };
 
-	float zoom_ = 1.0f;
+	float zoom_ = 1.6f;
 	QPoint pos_;
 
 	int frame_ = 0;
@@ -199,6 +213,9 @@ private:
 	bool hasBlue_ = true;
 	bool hasAlpha_ = true;
 
+	bool hasSpriteSheetLocation_ = false;
+	vtfpp::SpriteImagePositions spriteSheet_ = { -1.f, -1.f, -1.f, -1.f };
+
 	int animationTimer_ = -1;
 	bool animateReverse_;
 
@@ -209,7 +226,12 @@ private:
 	int currentMip_ = 0;
 	bool requestColorChange = false;
 	void Animate();
+
+protected:
+	void mousePressEvent( QMouseEvent *event ) override;
+
 signals:
 	void animated( int frame );
 	void zoomChanged( float zoom );
+	void onRightClick();
 };

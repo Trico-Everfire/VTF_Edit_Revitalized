@@ -3,6 +3,7 @@
 #include "vpkpp/PackFile.h"
 #include "vpkpp/format/VPK.h"
 
+#include <QDirIterator>
 #include <QFileSystemModel>
 #include <QStringView>
 
@@ -138,7 +139,7 @@ TreeModel::TreeModel( QObject *parent ) :
 	QAbstractItemModel( parent ), rootItem( std::make_unique<TreeItem>( QVariantList { tr( "File System" ) } ) )
 {
 	rootItem->setPath( QDir::rootPath() );
-	fillItem( rootItem.get() );
+	//	fillItem( rootItem.get() );
 }
 
 void TreeModel::fillItem( TreeItem *item )

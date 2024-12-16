@@ -7,7 +7,7 @@ on:
 
 env:
   BUILD_DIR: '${{github.workspace}}/build'
-  QT_VERSION: '6.6.3'
+  QT_VERSION: '6.8.0'
   QT_MODULES: 'qtimageformats'
 
 jobs:
@@ -61,7 +61,7 @@ jobs:
             echo "Fixing $f..."
             chrpath -r '$ORIGIN/..' "$f"
           done
-        
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:

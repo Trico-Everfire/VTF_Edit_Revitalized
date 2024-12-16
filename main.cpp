@@ -1,62 +1,55 @@
-// #include "dialogs/VTFEdit.h"
+#include "src/ApplicationOptionsWidget.h"
 #include "src/MainWindow.h"
-#include "src/Options.h"
 
 #include <QApplication>
-#include <QCommonStyle>
-#include <QDir>
 #include <QLocalServer>
 #include <QLocalSocket>
-#include <QNativeIpcKey>
-#include <QSharedMemory>
-#include <QStyleFactory>
-#include <csignal>
 
 using namespace ui;
 
-QLocalServer *server = nullptr;
-auto basetrm = std::get_terminate();
-
-__sighandler_t oldAbrtHandler;
-__sighandler_t oldSegfHandler;
-
-void exceptionHandler()
-{
-	qInfo() << "Wew";
-	if ( server )
-		server->close();
-	delete server;
-	server = nullptr;
-	basetrm();
-};
-
-extern "C" void c_exceptionHandler( int signal_number )
-{
-	exceptionHandler();
-}
-
-int closeApplication()
-{
-	int res = QApplication::exec();
-	delete server;
-	server = nullptr;
-	return res;
-}
+// class changeableApplication : public QApplication
+//{
+//	style
+// };
+//	bool event( QEvent *event ) override
+//	{
+//		if ( event->type() == QEvent::ApplicationPaletteChange )
+//		{
+//			updateColorMode();
+//			Q_EMIT paletteChanged();
+//		}
+//		return QApplication::event( event );
+//	}
+//
+//	void updateColorMode()
+//	{
+//		// Detect if we use a dark theme
+//		const QPalette palette;
+//		const bool isDarkMode = false; //= palette.base().color().lightness()
+//									   //< palette.windowText().color().lightness();
+//		setProperty( "DARK_MODE", isDarkMode );
+//	}
+//   };
 
 int main( int argc, char **argv )
 {
+	//	QGuiApplication::setDesktopSettingsAware( false );
 	QApplication app( argc, argv );
+
+	QApplication::setWindowIcon( QIcon( ":/VTF_Forge_Icon.ico" ) );
 
 	const QString appKey = "QTVTFER_LOCAL_P";
 
-	QLocalSocket *socket = new QLocalSocket();
+	auto socket = std::make_unique<QLocalSocket>();
 	socket->connectToServer( appKey );
 
-	if ( socket->isOpen() )
+	bool multiInstance = QCoreApplication::arguments().contains( "--multi-instance" ) || QCoreApplication::arguments().contains( "-mi" );
+
+	if ( socket->isOpen() && !multiInstance )
 	{
 		QByteArray data;
 
-		QDataStream out( socket );
+		QDataStream out( socket.get() );
 		out.setVersion( QDataStream::Qt_6_7 );
 
 		for ( int i = 0; i < argc; i++ )
@@ -66,7 +59,6 @@ int main( int argc, char **argv )
 		}
 		out << data;
 		qInfo() << data;
-		qInfo() << "IsOpen";
 		if ( !socket->waitForBytesWritten( -1 ) )
 		{
 			qDebug() << "writen Bytes error " << socket->errorString();
@@ -77,53 +69,33 @@ int main( int argc, char **argv )
 		socket->waitForDisconnected( 30000 );
 		return 0;
 	}
-	delete socket;
 
-	QCommonStyle *style = (QCommonStyle *)QStyleFactory::create( "fusion" );
-	QApplication::setStyle( style );
+	if ( socket->error() == QLocalSocket::ConnectionRefusedError )
+		QLocalServer::removeServer( appKey );
 
-	QPalette palette;
-	palette.setColor( QPalette::Window, QColor( 49, 54, 59 ) );
-	palette.setColor( QPalette::WindowText, Qt::white );
-	palette.setColor( QPalette::Base, QColor( 27, 30, 32 ) );
-	palette.setColor( QPalette::AlternateBase, QColor( 49, 54, 59 ) );
-	palette.setColor( QPalette::ToolTipBase, Qt::black );
-	palette.setColor( QPalette::ToolTipText, Qt::white );
-	palette.setColor( QPalette::Text, Qt::white );
-	palette.setColor( QPalette::Button, QColor( 49, 54, 59 ) );
-	palette.setColor( QPalette::ButtonText, Qt::white );
-	palette.setColor( QPalette::BrightText, Qt::red );
-	palette.setColor( QPalette::Link, QColor( 42, 130, 218 ) );
-	palette.setColor( QPalette::Highlight, QColor( 42, 130, 218 ) );
-	palette.setColor( QPalette::HighlightedText, Qt::black );
-	palette.setColor( QPalette::Active, QPalette::Button, QColor( 49, 54, 59 ) );
-	palette.setColor( QPalette::Disabled, QPalette::ButtonText, Qt::darkGray );
-	palette.setColor( QPalette::Disabled, QPalette::WindowText, Qt::darkGray );
-	palette.setColor( QPalette::Disabled, QPalette::Text, Qt::darkGray );
-	palette.setColor( QPalette::Disabled, QPalette::Light, QColor( 49, 54, 59 ) );
+	//	QApplication::setPalette( palette );
 
-	QApplication::setPalette( palette );
-
-	std::unique_ptr<QSettings> options;
-	if ( Options::isStandalone() )
-	{
-		auto configPath = QApplication::applicationDirPath() + "/config.ini";
-		options = std::make_unique<QSettings>( configPath, QSettings::Format::IniFormat );
-	}
-	else
-	{
-		options = std::make_unique<QSettings>();
-	}
-
-	if ( options->value( STR_OPEN_RECENT ).value<QStringList>().isEmpty() )
-		options->setValue( STR_OPEN_RECENT, QStringList() << QDir::currentPath() );
-
-	Options::setupOptions( *options );
+	//	std::unique_ptr<QSettings> options;
+	//	if ( Options::isStandalone() )
+	//	{
+	//		auto configPath = QApplication::applicationDirPath() + "/config.ini";
+	//		options = std::make_unique<QSettings>( configPath, QSettings::Format::IniFormat );
+	//	}
+	//	else
+	//	{
+	//		options = std::make_unique<QSettings>();
+	//	}
+	//
+	//	if ( options->value( STR_OPEN_RECENT ).value<QStringList>().isEmpty() )
+	//		options->setValue( STR_OPEN_RECENT, QStringList() << QDir::currentPath() );
+	//
+	//	Options::setupOptions( *options );
 
 	auto pVTFEdit = new ui::CMainWindow();
+	pVTFEdit->setWindowIcon( QIcon( ":/VTF_Forge_Icon.ico" ) );
 	pVTFEdit->setAttribute( Qt::WA_DeleteOnClose );
 
-	if ( !Options::get<bool>( OPT_START_MAXIMIZED ) )
+	if ( !pVTFEdit->options->get<bool>( OPT_START_MAXIMIZED, false ) )
 	{
 		pVTFEdit->show();
 	}
@@ -132,49 +104,33 @@ int main( int argc, char **argv )
 		pVTFEdit->showMaximized();
 	}
 
-	server = new QLocalServer();
-	std::set_terminate( exceptionHandler );
-	signal( SIGTERM, &c_exceptionHandler );
-
-	QObject::connect( server, &QLocalServer::newConnection, [&]
-					  {
-						  qInfo() << "New connected";
-						  auto socket = server->nextPendingConnection();
-
-						  qInfo() << socket->waitForReadyRead( 3000 );
-
-						  QDataStream in;
-						  in.setDevice( socket );
-						  in.setVersion( QDataStream::Qt_6_7 );
-
-						  in.startTransaction();
-						  QByteArray nextFortune;
-						  in >> nextFortune;
-						  if ( !in.commitTransaction() )
-							  return;
-						  QStringList list = QString( nextFortune ).split( '\n' );
-						  socket->disconnectFromServer();
-
-						  char **aquiredArgs = new char *[list.size()];
-						  for ( int i = 0; i < list.size(); i++ )
+	auto server = std::make_unique<QLocalServer>();
+	if ( !multiInstance )
+	{
+		QObject::connect( server.get(), &QLocalServer::newConnection, [&]
 						  {
-							  int sz = list[i].size() + 1;
-							  char *ptr = aquiredArgs[i] = new char[sz];
-							  memcpy( ptr, list[i].toStdString().c_str(), sz );
-						  }
+							  auto socket = std::unique_ptr<QLocalSocket>( server->nextPendingConnection() );
 
-						  pVTFEdit->consoleParameters( list.size(), aquiredArgs );
-						  pVTFEdit->activateWindow();
-						  for ( int i = 0; i < list.size(); i++ )
-							  delete aquiredArgs[i];
+							  socket->waitForReadyRead( 3000 );
 
-						  delete[] aquiredArgs;
-					  } );
+							  QDataStream in;
+							  in.setDevice( socket.get() );
+							  in.setVersion( QDataStream::Qt_6_7 );
 
-	server->listen( appKey );
+							  in.startTransaction();
+							  QByteArray argData;
+							  in >> argData;
+							  if ( !in.commitTransaction() )
+								  return;
+							  QStringList argList = QString( argData ).split( '\n' );
+							  socket->disconnectFromServer();
+							  pVTFEdit->consoleParameters( argList );
+							  pVTFEdit->activateWindow();
+						  } );
+
+		server->listen( appKey );
+	}
 
 	pVTFEdit->consoleParameters( argc, argv );
-
-	QApplication::setWindowIcon( QIcon( "vtf_edit_revitalised2.png" ).pixmap( 1080, 1080 ) );
-	return closeApplication();
+	return QApplication::exec();
 }

@@ -7,7 +7,6 @@ uniform sampler2D ourTexture;
 uniform int RGBA;
 uniform float gamma;
 
-
 void main()
 {
 

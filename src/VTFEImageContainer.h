@@ -33,12 +33,36 @@
 //	//	}
 // };
 
+struct VTFContainer
+{
+	vtfpp::VTF *vtf = nullptr;
+	QString path = {};
+	QString name = {};
+	bool hasSaved = false;
+	bool isOriginal = false;
+
+	vtfpp::VTF *operator->() const
+	{
+		return this->vtf;
+	}
+
+	operator bool()
+	{
+		return vtf;
+	}
+
+	bool operator!() const
+	{
+		return vtf == nullptr;
+	}
+};
+
 class VTFEImageContainer
 {
 	QString path;
 	std::vector<std::byte> m_vImageData;
-	uint32_t m_vWidth;
-	uint32_t m_vHeight;
+	uint16_t m_vWidth;
+	uint16_t m_vHeight;
 	uint32_t m_vSize;
 	vtfpp::ImageFormat m_vFormat;
 
@@ -62,7 +86,7 @@ public:
 		m_vFormat = inputFormat;
 	}
 
-	VTFEImageContainer( std::vector<std::byte> b, uint32_t width, uint32_t height, vtfpp::ImageFormat format )
+	VTFEImageContainer( std::vector<std::byte> b, uint16_t width, uint16_t height, vtfpp::ImageFormat format )
 	{
 		m_vSize = b.size(); // vtfpp::ImageFormatDetails::getDataLength( format, width, height, 1 );
 		m_vImageData = std::move( b );
@@ -71,9 +95,10 @@ public:
 		m_vFormat = format;
 	}
 
-	VTFEImageContainer( const std::byte *b, uint32_t width, uint32_t height, vtfpp::ImageFormat format )
+	VTFEImageContainer( const std::byte *b, uint16_t width, uint16_t height, vtfpp::ImageFormat format )
 	{
-		m_vSize = vtfpp::ImageFormatDetails::getDataLength( format, width, height, 1 );
+		auto size = vtfpp::ImageFormatDetails::getDataLength( format, width, height, 1 );
+		m_vSize = size;
 		m_vImageData = { b, b + m_vSize };
 		m_vWidth = width;
 		m_vHeight = height;
@@ -95,12 +120,12 @@ public:
 		return m_vFormat;
 	}
 
-	[[nodiscard]] uint32_t getWidth() const
+	[[nodiscard]] uint16_t getWidth() const
 	{
 		return m_vWidth;
 	}
 
-	[[nodiscard]] uint32_t getHeight() const
+	[[nodiscard]] uint16_t getHeight() const
 	{
 		return m_vHeight;
 	}

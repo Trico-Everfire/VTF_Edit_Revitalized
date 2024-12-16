@@ -37,6 +37,18 @@ ImageViewWidget::ImageViewWidget( QWidget *pParent ) :
 
 {
 	setFocusPolicy( Qt::StrongFocus );
+	this->background = QImage( ":/VTF_Forge_small_grayscale.png" );
+
+	QPixmap transparent( this->background.size() );
+	transparent.fill( Qt::transparent );
+	QPainter p;
+	p.begin( &transparent );
+	p.setCompositionMode( QPainter::CompositionMode_Source );
+	p.drawPixmap( 0, 0, QPixmap::fromImage( this->background ) );
+	p.setCompositionMode( QPainter::CompositionMode_DestinationIn );
+	p.fillRect( transparent.rect(), QColor( 0, 0, 0, 40 ) );
+	p.end();
+	this->background = transparent.toImage();
 }
 
 void ImageViewWidget::startAnimation( int fps )
@@ -67,7 +79,10 @@ void ImageViewWidget::set_vtf( vtfpp::VTF *file )
 
 	// No file, sad.
 	if ( !file )
+	{
+		zoom_ = 1.6f;
 		return;
+	}
 
 	update_size();
 }
@@ -98,13 +113,7 @@ void ImageViewWidget::initializeGL()
 
 void ImageViewWidget::resizeGL( int w, int h )
 {
-	// Update projection matrix and other size related settings:
 	glViewport( 0, 0, w, h );
-	//	glMatrixMode( GL_PROJECTION );
-	//	glOrtho( -aspect, aspect, -1, 1, -1, 1 );
-	//
-	//	glMatrixMode( GL_MODELVIEW );
-	//	glLoadIdentity();
 }
 
 void ImageViewWidget::paintGL()
@@ -124,12 +133,36 @@ void ImageViewWidget::paintGL()
 	shaderProgram->bind();
 
 	float aspect = (float)this->width() / (float)this->height();
+	QVector4D sheetData;
+	if ( !hasSpriteSheetLocation_ )
+		sheetData = QVector4D( 0.f, 1.f, 1.f, 0.f );
+
+	else
+		sheetData = QVector4D( this->spriteSheet_.left, this->spriteSheet_.top, this->spriteSheet_.right, this->spriteSheet_.bottom );
+
+	GLfloat texCoords[] = {
+		// positions          // colors           // texture coords
+		0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, sheetData.z(), sheetData.y(),	// top right
+		0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, sheetData.z(), sheetData.w(),	// bottom right
+		-0.5f, -0.5f, 0.0f, 0.0f, 0.0f, 1.0f, sheetData.x(), sheetData.w(), // bottom left
+		-0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 0.0f, sheetData.x(), sheetData.y()	// top left
+	};
+
+	this->vertices.create();
+	this->vertices.bind();
+	this->vertices.setUsagePattern( QOpenGLBuffer::StaticDraw );
+	this->vertices.allocate( texCoords, sizeof( texCoords ) );
+	this->vertices.release();
 
 	QMatrix4x4 projectionMatrix = {
-		1, 0.0f, 0.0f, 0.0f,
-		0.0f, 1, 0.0f, 0.0f,
-		0.0f, 0.0f, 1.0f, 0.0f,
-		0.0f, 0.0f, 0.0f, 1.0f };
+		1.f, 0.0f, 0.0f, 0.0f,
+		0.0f, 1.f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.f, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.f };
+
+	int TexProcessing = shaderProgram->uniformLocation( "TexMat" ); // glGetUniformLocation( shaderProgram, "RGBA" );
+
+	shaderProgram->setUniformValue( TexProcessing, sheetData );
 
 	// TODO: figure this out properly, this feels terrible.
 	int startWidht = this->width();
@@ -172,8 +205,6 @@ void ImageViewWidget::paintGL()
 
 	shaderProgram->setUniformValue( OFFSETProcessing, offsets );
 
-	// shaderProgram->setUniformValue( scalingTransformation, scalar );
-
 	indexes.bind();
 	vertices.bind();
 
@@ -188,17 +219,27 @@ void ImageViewWidget::paintGL()
 	if ( file_ )
 	{
 		GLuint width, height;
-		//		vtfpp::ImageDimensions::CVTFFile::ComputeMipmapDimensions( file_->GetWidth(), file_->GetHeight(), 1, mip_, width, height, whatever );
 		width = vtfpp::ImageDimensions::getMipDim( mip_, file_->getWidth() );
 		height = vtfpp::ImageDimensions::getMipDim( mip_, file_->getHeight() );
-		// auto size = CVTFFile::ComputeImageSize( width, height, whatever, vtfpp::ImageFormat::RGBA8888 );
-		//		auto imgData = new vlByte[size];
-		//		CVTFFile::ConvertToRGBA8888( file_->getImageDataAsRGBA8888( mip_, frame_, face_, 0 ), reinterpret_cast<std::byte *>( imgData ), width, height, file_->GetFormat() );
-		float vtfAspect = (float)width / (float)height;
-		projectionMatrix.setColumn( 0, { projectionMatrix.column( 0 )[0] * vtfAspect, 0, 0, 0 } );
 
-		if ( vtfpp::ImageFormatDetails::large( file_->getFormat() ) )
+		if ( this->hasSpriteSheetLocation_ && file_->getResource( vtfpp::Resource::TYPE_PARTICLE_SHEET_DATA ) )
 		{
+			projectionMatrix.setColumn( 1, { 0, -projectionMatrix.column( 1 )[1], 0, 0 } );
+
+			auto dat = file_->getImageDataAsRGBA8888( mip_, frame_, face_ - 1, 0 );
+			texture.setMinMagFilters( QOpenGLTexture::Linear, QOpenGLTexture::Linear );
+			texture.create();
+			texture.setSize( width, height, 1 );
+			texture.setFormat( QOpenGLTexture::RGBA8_UNorm );
+			texture.allocateStorage();
+			texture.setData( QOpenGLTexture::RGBA, QOpenGLTexture::UInt8, dat.data() );
+			shaderProgram->setUniformValue( GammaLocation, -1.0f );
+		}
+		else if ( vtfpp::ImageFormatDetails::large( file_->getFormat() ) )
+		{
+			float vtfAspect = (float)width / (float)height;
+			projectionMatrix.setColumn( 0, { projectionMatrix.column( 0 )[0] * vtfAspect, 0, 0, 0 } );
+
 			auto dat = file_->getImageDataAs( vtfpp::ImageFormat::RGBA32323232F, mip_, frame_, face_ - 1, 0 );
 			texture.create();
 			texture.setSize( width, height, 1 );
@@ -209,6 +250,9 @@ void ImageViewWidget::paintGL()
 		}
 		else
 		{
+			float vtfAspect = (float)width / (float)height;
+			projectionMatrix.setColumn( 0, { projectionMatrix.column( 0 )[0] * vtfAspect, 0, 0, 0 } );
+
 			shaderProgram->setUniformValue( GammaLocation, -1.0f );
 
 			auto dat = file_->getImageDataAsRGBA8888( mip_, frame_, face_ - 1, 0 );
@@ -216,14 +260,16 @@ void ImageViewWidget::paintGL()
 			texture.setData( QImage( reinterpret_cast<const uchar *>( dat.data() ), width, height, QImage::Format_RGBA8888 ) );
 		}
 		texture.bind( 0 );
-
-		// delete[] imgData;
 	}
 	else
 	{
-		static constexpr unsigned char buff[4] = { 0, 0, 0, 0 };
+		float vtfAspect = (float)this->background.width() / (float)this->background.height();
+		projectionMatrix.setColumn( 0, { projectionMatrix.column( 0 )[0] * vtfAspect, 0, 0, 0 } );
+
+		shaderProgram->setUniformValue( GammaLocation, -1.0f );
+
 		texture.create();
-		texture.setData( QImage( buff, 1, 1, QImage::Format_RGBA8888 ) );
+		texture.setData( this->background );
 		texture.bind( 0 );
 	}
 
@@ -237,83 +283,6 @@ void ImageViewWidget::paintGL()
 	texture.destroy();
 	shaderProgram->release();
 }
-
-// void ImageViewWidget::paintEvent( QPaintEvent *event )
-//{
-//	QPainter painter( this );
-//
-//	if ( !file_ )
-//		return;
-//
-//	// Compute draw size for this mip, frame, etc
-//	vlUInt imageWidth, imageHeight, imageDepth;
-//	CVTFFile::ComputeMipmapDimensions(
-//		file_->GetWidth(), file_->GetHeight(), file_->GetDepth(), mip_, imageWidth, imageHeight, imageDepth );
-//
-//	// Needs decode
-//	if ( frame_ != currentFrame_ || mip_ != currentMip_ || face_ != currentFace_ || requestColorChange )
-//	{
-//		const bool hasAlpha = CVTFFile::GetImageFormatInfo( file_->GetFormat() ).uiAlphaBitsPerPixel > 0;
-//		const VTFImageFormat format = hasAlpha ? IMAGE_FORMAT_RGBA8888 : IMAGE_FORMAT_RGB888;
-//		auto size = file_->ComputeMipmapSize( file_->GetWidth(), file_->GetHeight(), 1, mip_, format );
-//
-//		if ( imgBuf_ )
-//		{
-//			free( imgBuf_ );
-//		}
-//		// This buffer needs to persist- QImage does not own the mem you give it
-//		imgBuf_ = static_cast<vlByte *>( malloc( size ) );
-//
-//		bool ok = CVTFFile::Convert(
-//			file_->GetData( frame_, face_, 0, mip_ ), (vlByte *)imgBuf_, imageWidth, imageHeight, file_->GetFormat(),
-//			format );
-//
-//		if ( !ok )
-//		{
-//			std::cerr << "Could not convert image for display.\n";
-//			return;
-//		}
-//
-//		image_ = QImage(
-//			(uchar *)imgBuf_, imageWidth, imageHeight, hasAlpha ? QImage::Format_RGBA8888 : QImage::Format_RGB888 );
-//
-//		if ( requestColorChange )
-//		{
-//			//			for ( int y = 0; y < image_.height(); ++y )
-//			//			{
-//			//				QRgb *line = reinterpret_cast<QRgb *>( image_.scanLine( y ) );
-//			//				for ( int x = 0; x < image_.width(); ++x )
-//			//				{
-//			//					QRgb &rgb = line[x];
-//			//					rgb = qRgba( qRed( red_ ? rgb : 0 ), qGreen( green_ ? rgb : 0 ), qBlue( blue_ ? rgb : 0 ), qAlpha( alpha_ ? rgb : 255 ) );
-//			//				}
-//			//			}
-//
-//			for ( int i = 0; i < ( image_.width() ); i++ )
-//				for ( int j = 0; j < image_.height(); j++ )
-//				{
-//					QColor QImageColor = QColor( image_.pixel( i, j ) );
-//					QRgb r = red_ ? QImageColor.red() : 0;
-//					QRgb g = green_ ? QImageColor.green() : 0;
-//					QRgb b = blue_ ? QImageColor.blue() : 0;
-//					QRgb a = alpha_ ? qAlpha( image_.pixel( i, j ) ) : 255;
-//
-//					image_.setPixelColor( i, j, QColor( r, g, b, a ) );
-//				}
-//		}
-//
-//		requestColorChange = false;
-//		currentFace_ = face_;
-//		currentFrame_ = frame_;
-//		currentMip_ = mip_;
-//	}
-//
-//	QPoint destpt =
-//		QPoint( width() / 2, height() / 2 ) - QPoint( ( imageWidth * zoom_ ) / 2, ( imageHeight * zoom_ ) / 2 ) + pos_;
-//	QRect target = QRect( destpt.x(), destpt.y(), image_.width() * zoom_, image_.height() * zoom_ );
-//
-//	painter.drawImage( target, image_, QRect( 0, 0, image_.width(), image_.height() ) );
-// }
 
 void ImageViewWidget::wheelEvent( QWheelEvent *event )
 {
@@ -369,7 +338,8 @@ bool ImageViewWidget::event( QEvent *event )
 void ImageViewWidget::zoom( float amount )
 {
 	if ( amount == 0 || !file_ )
-		return; // Skip expensive repaint
+		return; // Skip expensive update
+
 	zoom_ += amount;
 	if ( zoom_ < 0.01f )
 		zoom_ = 0.01f;
@@ -394,4 +364,13 @@ void ImageViewWidget::timerEvent( QTimerEvent *event )
 float ImageViewWidget::getZoom() const
 {
 	return zoom_;
+}
+void ImageViewWidget::mousePressEvent( QMouseEvent *event )
+{
+	if ( event->button() == Qt::RightButton )
+	{
+		emit onRightClick();
+	}
+
+	QWidget::mousePressEvent( event );
 }

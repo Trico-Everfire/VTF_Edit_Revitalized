@@ -2,7 +2,16 @@
     <qresource prefix="/">
         <file alias="fragment.glsl">../shaders/fragment.glsl</file>
         <file alias="vertex.glsl">../shaders/vertex.glsl</file>
-        <file alias="vtf.png">VTF-Edit.png</file>
+        <file>VTF_Forge.png</file>
+        <file>Galaxy_1k.png</file>
+        <file>Galaxy_2k.png</file>
+        <file>Galaxy_4k.png</file>
+        <file>supporters.json</file>
+        <file>about.md</file>
+        <file>ko-fi-donation.svg</file>
+        <file>VTF_Forge_small.png</file>
+        <file>VTF_Forge_small_grayscale.png</file>
+        <file>VTF_Forge_Icon.ico</file>
         <file>vpk.ico</file>
     </qresource>
 </RCC>

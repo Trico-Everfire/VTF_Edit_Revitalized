@@ -52,7 +52,7 @@ endif ()
 
 
 if (UNIX)
-    set(QT_INCLUDE "/usr/include/x86_64-linux-gnu/qt6")
+    set(QT_INCLUDE "$ENV{HOME}/Qt/$ENV{QT_VERSION}/gcc_64/include/")
     if (NOT DEFINED QT_BASEDIR)
         set(QT_BASEDIR "$ENV{HOME}/Qt/$ENV{QT_VERSION}/gcc_64/")
     endif ()
@@ -90,8 +90,8 @@ set(SRC
         main.cpp
         #        dialogs/VTFEdit.cpp
         #        dialogs/VTFEdit.h
-        src/VTFEImport.cpp
-        src/VTFEImport.h
+        #        src/VTFEImport.cpp
+        #        src/VTFEImport.h
         #        widgets/VPKDirectoryHandler.cpp
         #        widgets/VPKDirectoryHandler.h
         src/ImageViewWidget.cpp
@@ -120,9 +120,12 @@ set(SRC
         src/MainWindow.cpp src/MainWindow.h
         src/supported_formats/TiffSupport.cpp
         src/supported_formats/TiffSupport.h
-        src/Options.cpp
+        src/ApplicationOptionsWidget.h
+        src/ApplicationOptionsWidget.cpp
         src/EntryTree.h
-        src/EntryTree.cpp)
+        src/EntryTree.cpp
+        src/ProcessVTF.cpp
+        src/ProcessVTF.h)
 
 #add_subdirectory(libs/VTFLib)
 
@@ -147,6 +150,13 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Network Qt6::DBu
 target_include_directories(${PROJECT_NAME} PRIVATE "${QT_INCLUDE} ${QT_INCLUDE}/QtWidgets" "${QT_INCLUDE}/QNetwork" "${QT_INCLUDE}/QtDBus" "${QT_INCLUDE}/QtGui" "${QT_INCLUDE}/QtCore" "${QT_INCLUDE}/QtOpenGLWidgets" ${QT_INCLUDE}/QtOpenGL ${OPENGL_LIBRARIES} OpenEXR::OpenEXR Imath::Imath Imath::Half)
 target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/libs/sourcepp/ext/hat-trie/include")
 target_include_directories(${PROJECT_NAME} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libs/sourcepp/ext/hat-trie/include")
+
+target_sources(
+        ${PROJECT_NAME} PRIVATE
+        "$<$<CONFIG:Debug>:${CMAKE_CURRENT_SOURCE_DIR}/src/res/logo.rc>"
+        "$<$<NOT:$<CONFIG:Debug>>:${CMAKE_CURRENT_SOURCE_DIR}/src/res/logo.rc>")
+
+
 if (WIN32)
     # Copy these to bundle them with the program in releases
     configure_file("${QT_BASEDIR}/bin/opengl32sw.dll" "${CMAKE_BINARY_DIR}/opengl32sw.dll" COPYONLY)

@@ -138,7 +138,7 @@ void ImageSettingsWidget::setup_ui( ImageViewWidget *viewer )
 	}
 }
 
-void ImageSettingsWidget::set_vtf( vtfpp::VTF *file )
+void ImageSettingsWidget::set_vtf( const VTFContainer &file )
 {
 	// Hack to ensure we don't emit fileModified when setting defaults
 	settingFile_ = true;
@@ -160,7 +160,7 @@ void ImageSettingsWidget::set_vtf( vtfpp::VTF *file )
 			check.second->setCheckable( false );
 		}
 		settingFile_ = false;
-		file_ = nullptr;
+		file_ = file;
 		animateButton->setText( "Animate" );
 		return;
 	}
@@ -189,4 +189,20 @@ void ImageSettingsWidget::set_vtf( vtfpp::VTF *file )
 	}
 
 	settingFile_ = false;
+}
+bool ImageSettingsWidget::aquireFFPS( int &frame, int &face, int &mip, int &slice )
+{
+	frame = -1;
+	face = -1;
+	mip = -1;
+	slice = -1;
+
+	if ( !file_ )
+		return false;
+
+	frame = this->frame_->value();
+	face = this->face_->value();
+	mip = this->mip_->value();
+	slice = 0; // TF2 Medic: "Later."
+	return true;
 }

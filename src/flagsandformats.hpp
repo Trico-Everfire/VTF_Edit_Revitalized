@@ -19,7 +19,7 @@ constexpr struct TextureFlag
 	{ vtfpp::VTF::Flags::FLAG_NORMAL, "Normal" },
 	{ vtfpp::VTF::Flags::FLAG_NO_MIP, "No MIP" },
 	{ vtfpp::VTF::Flags::FLAG_NO_LOD, "No LOD" },
-	{ vtfpp::VTF::Flags::FLAG_MIN_MIP, "Min Mip" },
+	{ vtfpp::VTF::Flags::FLAG_LOAD_LOWEST_MIPS, "Min Mip" },
 	{ vtfpp::VTF::Flags::FLAG_PROCEDURAL, "Procedural" },
 	{ vtfpp::VTF::Flags::FLAG_ONE_BIT_ALPHA, "One-bit Alpha" },
 	{ vtfpp::VTF::Flags::FLAG_MULTI_BIT_ALPHA, "Multi-bit Alpha" },
@@ -96,6 +96,7 @@ static inline constexpr struct
 	//	{ vtfpp::ImageFormat::ATI2N_OLD, "ATI2N Old" },
 	//	{ vtfpp::ImageFormat::ATI1N_OLD, "ATI1N Old" },
 };
+// TODO: Add strata specific new format.
 
 static inline constexpr const char *FILE_FIELDS[] = { "Size", "Version", "Compression Level" };
 
