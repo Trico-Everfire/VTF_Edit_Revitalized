@@ -110,6 +110,7 @@ namespace ui
 		void onPaste();
 		void consoleParameters( const QStringList &params );
 		void About();
+		void importMRAO();
 	};
 
 	class ZoomScrollArea : public QAbstractScrollArea

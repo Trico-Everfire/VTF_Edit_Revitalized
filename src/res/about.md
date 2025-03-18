@@ -2,7 +2,7 @@
 
 <br />
 
-### Version: 1.0
+### Version: 1.0 (%1 %2)
 
 <br />
 

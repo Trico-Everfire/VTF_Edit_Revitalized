@@ -215,6 +215,40 @@ inline QPalette ApplicationOptions::getTheme( ApplicationOptions::ApplicationPal
 		palette.setBrush( QPalette::Disabled, QPalette::Light, background );
 		return palette;
 	}
+	if ( opt == VTF_FORGE_P2CE )
+	{
+		QPalette palette {};
+		palette.setColor( QPalette::WindowText, QColor( 255, 255, 255 ) );
+		palette.setColor( QPalette::Button, QColor( 53, 53, 53 ) );
+		palette.setColor( QPalette::Text, QColor( 255, 255, 255 ) );
+		palette.setColor( QPalette::BrightText, QColor( 200, 0, 0 ) );
+		palette.setColor( QPalette::ButtonText, QColor( 255, 255, 255 ) );
+		palette.setColor( QPalette::Base, QColor( 25, 25, 25 ) );
+		palette.setColor( QPalette::Window, QColor( 40, 40, 40 ) );
+		palette.setColor( QPalette::Highlight, QColor( 219, 65, 65 ) );
+		palette.setColor( QPalette::HighlightedText, QColor( 10, 10, 10 ) );
+		palette.setColor( QPalette::AlternateBase, QColor( 40, 40, 40 ) );
+		palette.setColor( QPalette::ToolTipBase, QColor( 255, 255, 255 ) );
+		palette.setColor( QPalette::ToolTipText, QColor( 255, 255, 255 ) );
+		return palette;
+	}
+	if ( opt == VTF_FORGE_MOMENTUM )
+	{
+		QPalette palette {};
+		palette.setColor( QPalette::WindowText, QColor( 255, 255, 255 ) );
+		palette.setColor( QPalette::Button, QColor( 79, 79, 79 ) );
+		palette.setColor( QPalette::Text, QColor( 255, 255, 255 ) );
+		palette.setColor( QPalette::BrightText, QColor( 200, 0, 0 ) );
+		palette.setColor( QPalette::ButtonText, QColor( 255, 255, 255 ) );
+		palette.setColor( QPalette::Base, QColor( 32, 32, 32 ) );
+		palette.setColor( QPalette::Window, QColor( 50, 50, 50 ) );
+		palette.setColor( QPalette::Highlight, QColor( 24, 150, 211 ) );
+		palette.setColor( QPalette::HighlightedText, QColor( 32, 32, 32 ) );
+		palette.setColor( QPalette::AlternateBase, QColor( 79, 79, 79 ) );
+		palette.setColor( QPalette::ToolTipBase, QColor( 255, 255, 255 ) );
+		palette.setColor( QPalette::ToolTipText, QColor( 255, 255, 255 ) );
+		return palette;
+	}
 
 	return QApplication::palette();
 }
@@ -249,8 +283,8 @@ ApplicationOptions::ApplicationOptions( QWidget *parent ) :
 	auto themeOptions = get( OPT_THEME_SETTINGS, themeSettingsDefault );
 
 	auto selectedPalette = getTheme( themeOptions.value( "theme" ).toVariant().value<ApplicationPaletteOptions>() );
-
-	qInfo() << themeOptions.toVariantMap();
+	qInfo()
+		<< themeOptions.toVariantMap();
 
 	QApplication::setPalette( selectedPalette );
 
@@ -259,7 +293,7 @@ ApplicationOptions::ApplicationOptions( QWidget *parent ) :
 
 	auto paletteGroupEnum = paletteTypeMeta.enumerator( paletteTypeMeta.indexOfEnumerator( "ColorGroup" ) );
 
-	QGroupBox *themeBox = new QGroupBox( this );
+	auto themeBox = new QGroupBox( this );
 	auto themeBoxLayout = new QGridLayout( themeBox );
 
 	auto customLayoutWidget = new QWidget( this );

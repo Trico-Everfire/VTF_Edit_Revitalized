@@ -37,8 +37,6 @@ using namespace ui;
 CMainWindow::CMainWindow() :
 	QMainWindow()
 {
-	this->setWindowTitle( "VTF Edit Revitalized" );
-
 	this->options = new ApplicationOptions( this );
 
 	setAcceptDrops( true );
@@ -304,13 +302,12 @@ void CMainWindow::onPaste()
 
 	auto clipboardVTF = new vtfpp::VTF();
 
-	auto processVTF = new ProcessVTF( this, clipboardVTF );
+	auto processVTF = std::make_unique<ProcessVTF>( this, clipboardVTF );
 
 	processVTF->addImage( imageBoard->image() );
 
-	processVTF->exec();
-
-	addVTFToTab( clipboardVTF, "Clipboard" );
+	if ( processVTF->exec() )
+		addVTFToTab( clipboardVTF, "Clipboard" );
 }
 
 vtfpp::VTF *CMainWindow::getVTFFromVTFFile( const char *path )
@@ -409,6 +406,7 @@ void CMainWindow::setupMenuBar()
 	pToolMenuTab->addAction( "VTF Version Editor (Batch)", this, &CMainWindow::compressVTFFolder );
 	pToolMenuTab->addAction( "Batch Convert", this, &CMainWindow::batchConvert );
 	pToolMenuTab->addAction( "FontToVTF", this, &CMainWindow::fontToVTF );
+	pToolMenuTab->addAction( "Combine RGBA / Create MRAO", this, &CMainWindow::importMRAO );
 
 	auto pViewMenu = m_pMainMenuBar->addMenu( "View" );
 	redBox = createCheckableAction( "Red", pViewMenu );
@@ -964,7 +962,7 @@ void CMainWindow::batchConvert()
 
 	// auto pVTFImportWindow = VTFEImport::Standalone( this );
 	auto vtf = new vtfpp::VTF();
-	auto processVTF = new ProcessVTF( this, vtf );
+	auto processVTF = std::make_unique<ProcessVTF>( this, vtf );
 	connect( OptionsVTFConversionOptionDisplay, &QPushButton::pressed, this, [batchConvertQDialog]
 			 {
 				 auto displayDialog = new QDialog( batchConvertQDialog );
@@ -993,7 +991,11 @@ void CMainWindow::batchConvert()
 				 displayLayout->addWidget( displayCloseButton );
 				 displayDialog->show();
 			 } );
-	connect( optionsButton, &QPushButton::pressed, processVTF, &ProcessVTF::exec );
+	connect( optionsButton, &QPushButton::pressed, processVTF.get(), [&, vtf]
+			 {
+				 if ( !processVTF->exec() )
+					 delete vtf;
+			 } );
 	connect( toOrFrom, &QComboBox::currentIndexChanged, batchOptionsGroup, [toOrFrom, optionsToSelectedFormat, batchOptionsLayout, optionsToVTFLineEdit, OptionsVTFConversionOptionDisplay, optionsExportFFSDisplayButton, optionsExportFFSCheckBox, &toVTFString, &toImageString]
 			 {
 				 int curr = toOrFrom->currentData().toBool();
@@ -1026,6 +1028,7 @@ void CMainWindow::batchConvert()
 			 } );
 
 	batchConvertQDialog->exec();
+
 	//	auto recentPaths = options->get<QStringList>( STR_OPEN_RECENT );
 	//
 	//	QString importFrom = QFileDialog::getExistingDirectory(
@@ -1214,9 +1217,13 @@ void CMainWindow::NewVTFFromVTF( const QString &filePath )
 		return;
 	}
 
-	auto processVTF = new ProcessVTF( this, pVTF );
+	auto processVTF = std::make_unique<ProcessVTF>( this, pVTF );
 
-	processVTF->exec();
+	if ( processVTF->exec() == QDialog::Rejected )
+	{
+		delete pVTF;
+		return;
+	}
 	//	auto pVTFImportWindow = VTFEImport::FromVTF( this, pVTF );
 	//
 	//	pVTFImportWindow->exec();
@@ -1263,7 +1270,7 @@ void CMainWindow::generateVTFFromImage( const QString &filePath )
 		return;
 
 	auto pVTF = new vtfpp::VTF();
-	auto processVTF = new ProcessVTF( this, pVTF );
+	auto processVTF = std::make_unique<ProcessVTF>( this, pVTF );
 
 	processVTF->addImage( filePath );
 
@@ -1299,11 +1306,15 @@ void CMainWindow::generateVTFFromImages( QStringList filePaths )
 		return;
 
 	auto pVTF = new vtfpp::VTF();
-	auto processVTF = new ProcessVTF( this, pVTF );
+	auto processVTF = std::make_unique<ProcessVTF>( this, pVTF );
 
 	processVTF->addImage( filePaths );
 
-	processVTF->exec();
+	if ( processVTF->exec() == QDialog::Rejected )
+	{
+		delete pVTF;
+		return;
+	}
 
 	//	bool canRun;
 	//	auto newWindow = new VTFEImport( this, filePaths, canRun );
@@ -1400,10 +1411,14 @@ void CMainWindow::generateVTFFromFont( const QString &filepath )
 	QFontDatabase::removeApplicationFont( id );
 
 	auto pVTF = new vtfpp::VTF();
-	auto processVTF = new ProcessVTF( this, pVTF );
+	auto processVTF = std::make_unique<ProcessVTF>( this, pVTF );
 	processVTF->addImage( image );
 
-	processVTF->exec();
+	if ( processVTF->exec() == QDialog::Rejected )
+	{
+		delete pVTF;
+		return;
+	}
 
 	QFileInfo fl( filepath );
 	addVTFToTab( pVTF, fl.fileName() );
@@ -1652,7 +1667,7 @@ void CMainWindow::openTabContextMenu( int tab )
 void CMainWindow::processDroppedItems( const QStringList &paths )
 {
 	auto pVTF = new vtfpp::VTF();
-	auto processVTF = new ProcessVTF( this, pVTF );
+	auto processVTF = std::make_unique<ProcessVTF>( this, pVTF );
 
 	processVTF->addImage( paths );
 
@@ -1692,22 +1707,21 @@ class donationList : public QListView
 	void mouseDoubleClickEvent( QMouseEvent *event ) override { event->ignore(); };
 	void mouseMoveEvent( QMouseEvent *e ) override { e->ignore(); };
 	void mouseReleaseEvent( QMouseEvent *e ) override { e->ignore(); };
-	;
 };
 
 void CMainWindow::About()
 {
 	auto aboutDialog = new QDialog( this );
-	aboutDialog->setMinimumSize( 280, 550 );
+	aboutDialog->setMinimumSize( 380, 550 );
 	auto aboutLayout = new QGridLayout( aboutDialog );
 
 	auto aboutText = QFile( ":/about.md" );
 	aboutText.open( QFile::ReadOnly );
 	//"VTF Forge V0.86\nDeveloped by Trico Everfire\nAdditional credits to Strata Source."
-	auto infoLabel = new QLabel( aboutText.readAll(), aboutDialog );
+	auto infoLabel = new QLabel( QString( aboutText.readAll() ).arg( QSysInfo::kernelType(), QSysInfo::currentCpuArchitecture() ), aboutDialog );
 	infoLabel->setTextFormat( Qt::MarkdownText );
 	aboutLayout->addWidget( infoLabel, 0, 0, Qt::AlignTop );
-	auto donationLabel = new QLabel( "### Support:\n"
+	auto donationLabel = new QLabel( "### Support Me!:\n"
 									 "<a href=\"https://ko-fi.com/trico_everfire\" target=\"_blank\" rel=\"noopener noreferrer\"><img src=\":/ko-fi-donation.svg\" alt=\"Ko-Fi\" /></a>",
 									 aboutDialog );
 	donationLabel->setTextFormat( Qt::MarkdownText );
@@ -1718,7 +1732,6 @@ void CMainWindow::About()
 	auto supportLabel = new QLabel( "Ko-fi supporters:", aboutDialog );
 	supportLayout->addWidget( supportLabel );
 	auto supportView = new donationList( aboutDialog );
-	//	supportView->model()->setHeaderData( 0, Qt::Horizontal, "Supporters" );
 	auto supporters = QFile( ":/supporters.json" );
 	supporters.open( QFile::ReadOnly );
 	QJsonDocument doc = QJsonDocument::fromJson( supporters.readAll() );
@@ -1733,21 +1746,99 @@ void CMainWindow::About()
 		item->setDragEnabled( false );
 		item->setUserTristate( false );
 		model->appendRow( item );
-		//		auto item = new QListWidgetItem( supporter.toString() );
-		//		item->setFlags( Qt::NoItemFlags | Qt::ItemFlags::enum_type::ItemIsEnabled );
-		//		item->setSelected( false );
-		//		supportView->addItem( item );
 	}
 	supportView->clearSelection();
 	supportView->setSelectionMode( QAbstractItemView::NoSelection );
 	supportView->setSelectionRectVisible( false );
-	qInfo() << supportView->selectionModel()->hasSelection();
 	supportLayout->addWidget( supportView );
 
 	aboutLayout->addItem( new QSpacerItem( 20, 1 ), 0, 1 );
 
 	aboutLayout->addLayout( supportLayout, 0, 2, 2, 1, Qt::AlignLeft );
 	aboutDialog->exec();
+}
+
+void CMainWindow::importMRAO()
+{
+	auto mraoDialog = new QDialog( this );
+	auto mraoLayout = new QGridLayout( mraoDialog );
+
+	auto selectMRAORGBA = new QComboBox( mraoDialog );
+	selectMRAORGBA->addItem( "MRAO", true );
+	selectMRAORGBA->addItem( "RGBA", false );
+	mraoLayout->addWidget( selectMRAORGBA, 0, 0, 1, 2 );
+
+	auto metalLabel = new QLabel( "Metal", mraoDialog );
+	mraoLayout->addWidget( metalLabel, 1, 0 );
+
+	auto metalImageButton = new QPushButton( mraoDialog );
+	metalImageButton->setMinimumSize( 128, 128 );
+	mraoLayout->addWidget( metalImageButton, 1, 1 );
+
+	auto roughnessLabel = new QLabel( "Roughness", mraoDialog );
+	mraoLayout->addWidget( roughnessLabel, 2, 0 );
+
+	auto roughnessImageButton = new QPushButton( mraoDialog );
+	roughnessImageButton->setMinimumSize( 128, 128 );
+	mraoLayout->addWidget( roughnessImageButton, 2, 1 );
+
+	auto aoLabel = new QLabel( "Ambient Occlusion", mraoDialog );
+	mraoLayout->addWidget( aoLabel, 3, 0 );
+	auto aoImageButton = new QPushButton( mraoDialog );
+	aoImageButton->setMinimumSize( 128, 128 );
+	mraoLayout->addWidget( aoImageButton, 3, 1 );
+
+	auto alphaLabel = new QLabel( "Alpha", mraoDialog );
+	mraoLayout->addWidget( alphaLabel, 4, 0 );
+	alphaLabel->setHidden( true );
+	auto alphaImageButton = new QPushButton();
+	alphaImageButton->setMinimumSize( 128, 128 );
+	mraoLayout->addWidget( alphaImageButton, 4, 1 );
+	alphaImageButton->setHidden( true );
+
+	auto display = new QLabel( mraoDialog );
+	display->setMinimumSize( 512, 512 );
+
+	auto background = QImage( ":/VTF_Forge_small_grayscale.png" );
+
+	QPixmap transparent( background.size() );
+	transparent.fill( Qt::transparent );
+	QPainter p;
+	p.begin( &transparent );
+	p.setCompositionMode( QPainter::CompositionMode_Source );
+	p.drawPixmap( 0, 0, QPixmap::fromImage( background ) );
+	p.setCompositionMode( QPainter::CompositionMode_DestinationIn );
+	p.fillRect( transparent.rect(), QColor( 0, 0, 0, 40 ) );
+	p.end();
+	display->setPixmap( transparent.scaled( 512, 512 ) );
+	mraoLayout->addWidget( display, 0, 2, 4, 1 );
+
+	connect( selectMRAORGBA, &QComboBox::currentIndexChanged, mraoDialog, [mraoDialog, selectMRAORGBA, metalLabel, roughnessLabel, aoLabel, mraoLayout, alphaLabel, alphaImageButton, display]
+			 {
+				 auto data = selectMRAORGBA->currentData().toBool();
+				 if ( data )
+				 {
+					 metalLabel->setText( "Metal" );
+					 roughnessLabel->setText( "Roughness" );
+					 aoLabel->setText( "Ambient Occlusion" );
+					 mraoLayout->addWidget( display, 0, 2, 4, 1 );
+					 alphaLabel->setHidden( true );
+					 alphaImageButton->setHidden( true );
+					 mraoDialog->resize( mraoDialog->minimumSize().width(), mraoDialog->minimumSize().height() );
+					 return;
+				 }
+
+				 metalLabel->setText( "Red" );
+				 roughnessLabel->setText( "Green" );
+				 aoLabel->setText( "Blue" );
+
+				 alphaLabel->setHidden( false );
+				 alphaImageButton->setHidden( false );
+				 mraoLayout->addWidget( display, 0, 2, 5, 1 );
+				 mraoDialog->resize( mraoDialog->minimumSize().width(), mraoDialog->minimumSize().height() );
+			 } );
+
+	mraoDialog->exec();
 }
 
 ZoomScrollArea::ZoomScrollArea( QWidget *pParent ) :

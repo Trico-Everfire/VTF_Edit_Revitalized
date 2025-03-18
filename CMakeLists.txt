@@ -125,7 +125,10 @@ set(SRC
         src/EntryTree.h
         src/EntryTree.cpp
         src/ProcessVTF.cpp
-        src/ProcessVTF.h)
+        src/ProcessVTF.h
+        src/CLIProcessor.cpp
+        src/CLIProcessor.h
+)
 
 #add_subdirectory(libs/VTFLib)
 
@@ -163,7 +166,7 @@ if (WIN32)
     configure_file("${QT_BASEDIR}/bin/Qt6Core.dll" "${CMAKE_BINARY_DIR}/Qt6Core.dll" COPYONLY)
     configure_file("${QT_BASEDIR}/bin/Qt6Gui.dll" "${CMAKE_BINARY_DIR}/Qt6Gui.dll" COPYONLY)
     configure_file("${QT_BASEDIR}/bin/Qt6Widgets.dll" "${CMAKE_BINARY_DIR}/Qt6Widgets.dll" COPYONLY)
-    configure_file("${QT_BASEDIR}/bin/Qt6Widgets.dll" "${CMAKE_BINARY_DIR}/Qt6Network.dll" COPYONLY)
+    configure_file("${QT_BASEDIR}/bin/Qt6Network.dll" "${CMAKE_BINARY_DIR}/Qt6Network.dll" COPYONLY)
     configure_file("${QT_BASEDIR}/bin/Qt6OpenGL.dll" "${CMAKE_BINARY_DIR}/Qt6OpenGL.dll" COPYONLY)
     configure_file("${QT_BASEDIR}/bin/Qt6OpenGLWidgets.dll" "${CMAKE_BINARY_DIR}/Qt6OpenGLWidgets.dll" COPYONLY)
 

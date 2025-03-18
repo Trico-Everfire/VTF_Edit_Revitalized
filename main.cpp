@@ -1,7 +1,9 @@
 #include "src/ApplicationOptionsWidget.h"
+#include "src/CLIProcessor.h"
 #include "src/MainWindow.h"
 
 #include <QApplication>
+#include <QCommandLineParser>
 #include <QLocalServer>
 #include <QLocalSocket>
 
@@ -33,8 +35,19 @@ using namespace ui;
 
 int main( int argc, char **argv )
 {
-	//	QGuiApplication::setDesktopSettingsAware( false );
 	QApplication app( argc, argv );
+	QCoreApplication::setApplicationName( "VTF Forge" );
+	QCoreApplication::setApplicationVersion( "1.0" );
+
+	QCommandLineParser parser;
+
+	if ( !CLIProcessor::processCLI( &parser, QApplication::arguments() ) )
+		parser.showHelp( 1 );
+
+	if ( QCoreApplication::arguments().contains( "--no-ui" ) )
+	{
+		return 0;
+	}
 
 	QApplication::setWindowIcon( QIcon( ":/VTF_Forge_Icon.ico" ) );
 
@@ -72,24 +85,6 @@ int main( int argc, char **argv )
 
 	if ( socket->error() == QLocalSocket::ConnectionRefusedError )
 		QLocalServer::removeServer( appKey );
-
-	//	QApplication::setPalette( palette );
-
-	//	std::unique_ptr<QSettings> options;
-	//	if ( Options::isStandalone() )
-	//	{
-	//		auto configPath = QApplication::applicationDirPath() + "/config.ini";
-	//		options = std::make_unique<QSettings>( configPath, QSettings::Format::IniFormat );
-	//	}
-	//	else
-	//	{
-	//		options = std::make_unique<QSettings>();
-	//	}
-	//
-	//	if ( options->value( STR_OPEN_RECENT ).value<QStringList>().isEmpty() )
-	//		options->setValue( STR_OPEN_RECENT, QStringList() << QDir::currentPath() );
-	//
-	//	Options::setupOptions( *options );
 
 	auto pVTFEdit = new ui::CMainWindow();
 	pVTFEdit->setWindowIcon( QIcon( ":/VTF_Forge_Icon.ico" ) );
