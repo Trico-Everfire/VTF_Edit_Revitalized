@@ -1,7 +1,7 @@
 name: Build
 on:
   push:
-    branches: [ rework ]
+    branches: [ rework-vtfpp ]
   workflow_dispatch: # nothing here
 
 
