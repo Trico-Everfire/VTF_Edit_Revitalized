@@ -78,7 +78,7 @@ jobs:
       matrix:
         build_type: [ Debug, Release ]
         target: [ Source, StrataSource ]
-    runs-on: windows-2019
+    runs-on: windows-2025
     defaults:
       run:
         shell: cmd
