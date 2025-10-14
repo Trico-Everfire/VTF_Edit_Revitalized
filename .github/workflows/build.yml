@@ -8,13 +8,12 @@ on:
 env:
   BUILD_DIR: '${{github.workspace}}/build'
   QT_VERSION: '6.8.0'
-  QT_MODULES: 'qtimageformats'
 
 jobs:
   build-linux:
     strategy:
       matrix:
-        build_type: [ Debug, Release ]
+        build_type: [ Release ]
         target: [ Source, StrataSource ]
     runs-on: ubuntu-latest
     steps:
@@ -27,18 +26,12 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
-          aqtversion: '==3.1.*'
           version: ${{env.QT_VERSION}}
           host: 'linux'
           target: 'desktop'
-          arch: 'gcc_64'
-          modules: ${{env.QT_MODULES}}
+          arch: 'linux_gcc_64'
           dir: '${{github.workspace}}/libs/Qt'
           cache: true
-
-      - name: Configure CMake
-        if: ${{matrix.target == 'StrataSource'}}
-        run: cmake -G "Unix Makefiles" -B build -DCHAOS_INITIATIVE=ON -DCOMPRESSVTF=ON -DCMAKE_BUILD_TYPE=${{matrix.build_type}} -DQT_BASEDIR='${{github.workspace}}/libs/Qt/Qt/${{env.QT_VERSION}}/gcc_64'
 
       - name: Configure CMake
         if: ${{matrix.target == 'Source'}}
@@ -77,7 +70,7 @@ jobs:
     strategy:
       matrix:
         build_type: [ Debug, Release ]
-        target: [ Source, StrataSource ]
+        target: [ Source ]
     runs-on: windows-2025
     defaults:
       run:
@@ -92,21 +85,14 @@ jobs:
       - name: Install Qt6
         uses: jurplel/install-qt-action@v4
         with:
-          aqtversion: '==3.1.*'
           dir: '${{github.workspace}}/libs/Qt'
+          host: 'windows'
           version: ${{env.QT_VERSION}}
-          arch: win64_msvc2025_64
-          modules: ${{env.QT_MODULES}}
+          arch: win64_msvc2019_64
           cache: true
 
       - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Configure CMake
-        if: ${{matrix.target == 'StrataSource'}}
-        env:
-          CMAKE_PREFIX_PATH: ${{env.Qt6_Dir}}
-        run: cmake -G "Ninja" -B build -DCMAKE_BUILD_TYPE=${{matrix.build_type}} -DCOMPRESSVTF=ON -DCHAOS_INITIATIVE=ON -DQT_BASEDIR=${{github.workspace}}\libs\Qt\Qt\${{env.QT_VERSION}}\msvc2019_64
 
       - name: Configure CMake
         if: ${{matrix.target == 'Source'}}
