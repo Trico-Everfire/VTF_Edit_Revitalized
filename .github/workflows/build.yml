@@ -95,7 +95,7 @@ jobs:
           aqtversion: '==3.1.*'
           dir: '${{github.workspace}}/libs/Qt'
           version: ${{env.QT_VERSION}}
-          arch: win64_msvc2019_64
+          arch: win64_msvc2025_64
           modules: ${{env.QT_MODULES}}
           cache: true
 
