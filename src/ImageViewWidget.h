@@ -20,6 +20,198 @@ enum ColorSelection
 	ALPHA
 };
 
+inline QOpenGLTexture::PixelFormat mapVTFToPixelFormat( vtfpp::ImageFormat format )
+{
+	switch ( format )
+	{
+		case vtfpp::ImageFormat::RGBA8888:
+			return QOpenGLTexture::RGBA;
+		case vtfpp::ImageFormat::ABGR8888:
+			return QOpenGLTexture::BGRA;
+		case vtfpp::ImageFormat::RGB888:
+			return QOpenGLTexture::RGB;
+		case vtfpp::ImageFormat::BGR888:
+			return QOpenGLTexture::BGR;
+		case vtfpp::ImageFormat::RGB565:
+			return QOpenGLTexture::RGB;
+		case vtfpp::ImageFormat::I8:
+			return QOpenGLTexture::PixelFormat::Red_Integer;
+		case vtfpp::ImageFormat::IA88:
+			return QOpenGLTexture::RG;
+		case vtfpp::ImageFormat::P8:
+			return QOpenGLTexture::PixelFormat::Red_Integer;
+		case vtfpp::ImageFormat::A8:
+			return QOpenGLTexture::PixelFormat::Red_Integer;
+		case vtfpp::ImageFormat::RGB888_BLUESCREEN:
+			return QOpenGLTexture::PixelFormat::RGB;
+		case vtfpp::ImageFormat::BGR888_BLUESCREEN:
+			return QOpenGLTexture::PixelFormat::BGR;
+		case vtfpp::ImageFormat::ARGB8888:
+		case vtfpp::ImageFormat::BGRA8888:
+			return QOpenGLTexture::PixelFormat::RGBA;
+		case vtfpp::ImageFormat::BGRX8888:
+			return QOpenGLTexture::PixelFormat::BGRA;
+		case vtfpp::ImageFormat::BGR565:
+			break;
+		case vtfpp::ImageFormat::BGRX5551:
+			break;
+		case vtfpp::ImageFormat::BGRA4444:
+			break;
+		case vtfpp::ImageFormat::BGRA5551:
+			break;
+		case vtfpp::ImageFormat::UV88:
+			break;
+		case vtfpp::ImageFormat::UVWQ8888:
+			break;
+		case vtfpp::ImageFormat::RGBA16161616F:
+			break;
+		case vtfpp::ImageFormat::RGBA16161616:
+			break;
+		case vtfpp::ImageFormat::UVLX8888:
+			break;
+		case vtfpp::ImageFormat::R32F:
+			break;
+		case vtfpp::ImageFormat::RGB323232F:
+			break;
+		case vtfpp::ImageFormat::RGBA32323232F:
+			break;
+		case vtfpp::ImageFormat::RG1616F:
+			break;
+		case vtfpp::ImageFormat::RG3232F:
+			break;
+		case vtfpp::ImageFormat::RGBX8888:
+			break;
+		case vtfpp::ImageFormat::EMPTY:
+			break;
+		case vtfpp::ImageFormat::ATI2N:
+			break;
+		case vtfpp::ImageFormat::ATI1N:
+			break;
+		case vtfpp::ImageFormat::RGBA1010102:
+			break;
+		case vtfpp::ImageFormat::BGRA1010102:
+			break;
+		case vtfpp::ImageFormat::R16F:
+			break;
+		case vtfpp::ImageFormat::CONSOLE_BGRX8888_LINEAR:
+			break;
+		case vtfpp::ImageFormat::CONSOLE_RGBA8888_LINEAR:
+			break;
+		case vtfpp::ImageFormat::CONSOLE_ABGR8888_LINEAR:
+			break;
+		case vtfpp::ImageFormat::CONSOLE_ARGB8888_LINEAR:
+			break;
+		case vtfpp::ImageFormat::CONSOLE_BGRA8888_LINEAR:
+			break;
+		case vtfpp::ImageFormat::CONSOLE_RGB888_LINEAR:
+			break;
+		case vtfpp::ImageFormat::CONSOLE_BGR888_LINEAR:
+			break;
+		case vtfpp::ImageFormat::CONSOLE_BGRX5551_LINEAR:
+			break;
+		case vtfpp::ImageFormat::CONSOLE_I8_LINEAR:
+			break;
+		case vtfpp::ImageFormat::CONSOLE_RGBA16161616_LINEAR:
+			break;
+		case vtfpp::ImageFormat::CONSOLE_BGRX8888_LE:
+			break;
+		case vtfpp::ImageFormat::CONSOLE_BGRA8888_LE:
+			break;
+		case vtfpp::ImageFormat::R8:
+			break;
+		case vtfpp::ImageFormat::BC7:
+			break;
+		case vtfpp::ImageFormat::BC6H:
+			break;
+	}
+}
+
+inline QOpenGLTexture::TextureFormat mapVTFToGLFormat( vtfpp::ImageFormat format )
+{
+	switch ( format )
+	{
+		case vtfpp::ImageFormat::EMPTY:
+			return QOpenGLTexture::NoFormat;
+		case vtfpp::ImageFormat::CONSOLE_BGRX8888_LE:
+		case vtfpp::ImageFormat::CONSOLE_BGRA8888_LE:
+		case vtfpp::ImageFormat::CONSOLE_BGRX8888_LINEAR:
+		case vtfpp::ImageFormat::CONSOLE_RGBA8888_LINEAR:
+		case vtfpp::ImageFormat::CONSOLE_ABGR8888_LINEAR:
+		case vtfpp::ImageFormat::CONSOLE_ARGB8888_LINEAR:
+		case vtfpp::ImageFormat::CONSOLE_BGRA8888_LINEAR:
+		case vtfpp::ImageFormat::RGBX8888:
+		case vtfpp::ImageFormat::UVLX8888:
+		case vtfpp::ImageFormat::UVWQ8888:
+		case vtfpp::ImageFormat::BGRX8888:
+		case vtfpp::ImageFormat::ARGB8888:
+		case vtfpp::ImageFormat::BGRA8888:
+		case vtfpp::ImageFormat::RGBA8888:
+		case vtfpp::ImageFormat::ABGR8888:
+			return QOpenGLTexture::RGBA8_UNorm;
+		case vtfpp::ImageFormat::CONSOLE_RGB888_LINEAR:
+		case vtfpp::ImageFormat::CONSOLE_BGR888_LINEAR:
+		case vtfpp::ImageFormat::RGB888_BLUESCREEN:
+		case vtfpp::ImageFormat::BGR888_BLUESCREEN:
+		case vtfpp::ImageFormat::RGB888:
+		case vtfpp::ImageFormat::BGR888:
+			return QOpenGLTexture::RGB8_UNorm;
+		case vtfpp::ImageFormat::BGR565:
+		case vtfpp::ImageFormat::RGB565:
+			return QOpenGLTexture::R5G6B5;
+		case vtfpp::ImageFormat::I8:
+		case vtfpp::ImageFormat::A8:
+		case vtfpp::ImageFormat::R8:
+		case vtfpp::ImageFormat::P8:
+		case vtfpp::ImageFormat::CONSOLE_I8_LINEAR:
+			return QOpenGLTexture::R8_UNorm;
+		case vtfpp::ImageFormat::CONSOLE_BGRX5551_LINEAR:
+		case vtfpp::ImageFormat::BGRA5551:
+		case vtfpp::ImageFormat::BGRX5551:
+			return QOpenGLTexture::RGB5A1;
+		case vtfpp::ImageFormat::UV88:
+		case vtfpp::ImageFormat::IA88:
+			return QOpenGLTexture::RG8I;
+		case vtfpp::ImageFormat::RGBA16161616:
+		case vtfpp::ImageFormat::CONSOLE_RGBA16161616_LINEAR:
+			return QOpenGLTexture::RGBA16I;
+		case vtfpp::ImageFormat::RGBA1010102:
+		case vtfpp::ImageFormat::BGRA1010102:
+			return QOpenGLTexture::RGB10A2;
+		case vtfpp::ImageFormat::DXT1:
+			return QOpenGLTexture::RGBA_DXT1;
+		case vtfpp::ImageFormat::DXT1_ONE_BIT_ALPHA:
+			return QOpenGLTexture::RGBA_DXT1;
+		case vtfpp::ImageFormat::DXT3:
+			return QOpenGLTexture::RGBA_DXT3;
+		case vtfpp::ImageFormat::DXT5:
+			return QOpenGLTexture::RGBA_DXT5;
+		case vtfpp::ImageFormat::BGRA4444:
+			return QOpenGLTexture::RGBA4;
+		case vtfpp::ImageFormat::RGBA16161616F:
+			return QOpenGLTexture::RGBA16F;
+		case vtfpp::ImageFormat::R32F:
+			return QOpenGLTexture::R32F;
+		case vtfpp::ImageFormat::RGB323232F:
+			return QOpenGLTexture::RGB32F;
+		case vtfpp::ImageFormat::RGBA32323232F:
+			return QOpenGLTexture::RGBA32F;
+		case vtfpp::ImageFormat::RG1616F:
+			return QOpenGLTexture::RG16F;
+		case vtfpp::ImageFormat::RG3232F:
+			return QOpenGLTexture::RG32F;
+		case vtfpp::ImageFormat::ATI2N:
+			return QOpenGLTexture::RG_ATI2N_UNorm;
+		case vtfpp::ImageFormat::ATI1N:
+			return QOpenGLTexture::R_ATI1N_UNorm;
+		case vtfpp::ImageFormat::R16F:
+			return QOpenGLTexture::R16F;
+		case vtfpp::ImageFormat::BC7:
+			return QOpenGLTexture::RGB_BP_UNorm;
+		case vtfpp::ImageFormat::BC6H:
+			return QOpenGLTexture::RGB_BP_SIGNED_FLOAT;
+	}
+}
+
 class ImageViewWidget : public QOpenGLWidget,
 						protected QOpenGLFunctions_4_5_Core
 {
@@ -169,7 +361,7 @@ public:
 		this->update();
 	}
 
-	void setSpriteSheet( vtfpp::SpriteImagePositions sheet, bool is )
+	void setSpriteSheet( vtfpp::SHT::Sequence::Frame::Bounds sheet, bool is )
 	{
 		hasSpriteSheetLocation_ = is;
 		if ( !hasSpriteSheetLocation_ )
@@ -214,7 +406,7 @@ private:
 	bool hasAlpha_ = true;
 
 	bool hasSpriteSheetLocation_ = false;
-	vtfpp::SpriteImagePositions spriteSheet_ = { -1.f, -1.f, -1.f, -1.f };
+	vtfpp::SHT::Sequence::Frame::Bounds spriteSheet_ = { -1.f, -1.f, -1.f, -1.f };
 
 	int animationTimer_ = -1;
 	bool animateReverse_;

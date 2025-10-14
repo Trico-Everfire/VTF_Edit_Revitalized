@@ -4,7 +4,7 @@
 
 #include "VTFEdit.h"
 
-#include "../src/VTFEImport.h"
+#include "../widgets/VTFEImport.h"
 #include "VTFEAbout.h"
 
 #include <QApplication>

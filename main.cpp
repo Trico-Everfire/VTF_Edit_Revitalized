@@ -90,7 +90,7 @@ int main( int argc, char **argv )
 	pVTFEdit->setWindowIcon( QIcon( ":/VTF_Forge_Icon.ico" ) );
 	pVTFEdit->setAttribute( Qt::WA_DeleteOnClose );
 
-	if ( !pVTFEdit->options->get<bool>( OPT_START_MAXIMIZED, false ) )
+	if ( !pVTFEdit->options->get( OPT_START_MAXIMIZED, false ).toBool() )
 	{
 		pVTFEdit->show();
 	}

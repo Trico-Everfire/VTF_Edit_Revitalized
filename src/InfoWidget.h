@@ -1,12 +1,27 @@
 #pragma once
 
 #include <QWidget>
+#include <vtfpp/VTF.h>
 
-namespace vtfpp
-{
-	class VTF;
-	struct SpriteImagePositions;
-} // namespace vtfpp
+// namespace vtfpp
+//{
+//	class VTF;
+//	class SHT;
+//	class SHT
+//	{
+//	public:
+//		struct Sequence
+//		{
+//			struct Frame
+//			{
+//				struct Bounds
+//				{
+//				};
+//			};
+//		};
+//	};
+//	//	struct SpriteImagePositions;
+// } // namespace vtfpp
 class QLabel;
 class QCheckBox;
 class QSlider;
@@ -56,5 +71,5 @@ private:
 
 	void canTriggerInternal();
 signals:
-	void spriteSheetInfoUpdated( vtfpp::SpriteImagePositions, bool );
+	void spriteSheetInfoUpdated( vtfpp::SHT::Sequence::Frame::Bounds, bool );
 };

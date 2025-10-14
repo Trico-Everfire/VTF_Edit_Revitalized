@@ -3,11 +3,12 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_STATIC
 #include "../libs/stb/stb_image.h"
-#include "ImageSettingsWidget.h"
-#include "MainWindow.h"
-#include "Options.h"
-#include "flagsandformats.hpp"
-#include "supported_formats/TiffSupport.h"
+#include "../src/ImageSettingsWidget.h"
+#include "../src/MainWindow.h"
+// #include "Options.h"
+#include "../src/flagsandformats.hpp"
+#include "../src/supported_formats/TiffSupport.h"
+#include "kvpp/kvpp.h"
 
 #include <QApplication>
 #include <QBuffer>
@@ -26,14 +27,13 @@
 #include <QTabWidget>
 #include <QTimer>
 #include <cmath>
-#include <kvpp/kvpp.h>
 
 VTFEImport::VTFEImport( QWidget *pParent, const QString &filePath, bool &hasData ) :
 	QDialog( pParent )
 {
 	hasData = true;
 
-	AddImage( filePath );
+	addImage( filePath );
 	while ( !importThreads.isEmpty() )
 		continue;
 
@@ -63,7 +63,7 @@ VTFEImport::VTFEImport( QWidget *pParent, const QStringList &filePaths, bool &ha
 
 	for ( int i = 0; i < filePaths.count(); i++ )
 	{
-		AddImage( filePaths[i] );
+		addImage( filePaths[i] );
 		progress->setValue( i + 1 );
 	}
 
@@ -100,15 +100,15 @@ std::unique_ptr<vtfpp::VTF> VTFEImport::GenerateVTF( VTFErrorType &err )
 	auto destinationFormat = static_cast<vtfpp::ImageFormat>( vtfpp::ImageFormatDetails::alpha( grabFirst()->getFormat() ) == 0 ? pGeneralTab->pFormatCombo->currentData().toInt() : pGeneralTab->pAlphaDetectedFormatCombo->currentData().toInt() );
 	vtfpp::VTF::CreationOptions options;
 	options.outputFormat = destinationFormat;
-	options.minorVersion = pAdvancedTab->pVtfVersionBox->currentData().toInt();
+	options.version = pAdvancedTab->pVtfVersionBox->currentData().toInt();
 	options.widthResizeMethod = static_cast<vtfpp::ImageConversion::ResizeMethod>( pGeneralTab->pResizeMethodCombo->currentData().toInt() );
 	options.heightResizeMethod = static_cast<vtfpp::ImageConversion::ResizeMethod>( pGeneralTab->pResizeMethodCombo->currentData().toInt() );
 	options.flags = vtfImageFlags;
-	options.flags |= pGeneralTab->pSRGBCheckbox->isChecked() ? vtfpp::VTF::FLAG_SRGB : vtfpp::VTF::FLAG_NONE;
-	options.createReflectivity = pAdvancedTab->pComputeReflectivityCheckBox->isChecked();
-	options.createThumbnail = ( pAdvancedTab->pGenerateThumbnailCheckBox->isEnabled() && pAdvancedTab->pGenerateThumbnailCheckBox->isChecked() );
+	options.flags |= pGeneralTab->pSRGBCheckbox->isChecked() ? vtfpp::VTF::FLAG_V5_SRGB : 0;
+	options.computeReflectivity = pAdvancedTab->pComputeReflectivityCheckBox->isChecked();
+	options.computeThumbnail = ( pAdvancedTab->pGenerateThumbnailCheckBox->isEnabled() && pAdvancedTab->pGenerateThumbnailCheckBox->isChecked() );
 	options.filter = static_cast<vtfpp::ImageConversion::ResizeFilter>( pGeneralTab->pResizeFilterCombo->currentData().toInt() );
-	options.createMips = false;
+	options.computeMips = false;
 #ifdef CHAOS_INITIATIVE
 	if ( pAdvancedTab->pAuxCompressionBox->isEnabled() && pAdvancedTab->pAuxCompressionBox->isChecked() )
 		options.compressionLevel = ( pAdvancedTab->pAuxCompressionLevelBox->currentData().toInt() );
@@ -181,7 +181,7 @@ std::unique_ptr<vtfpp::VTF> VTFEImport::GenerateVTF( VTFErrorType &err )
 		return nullptr;
 	}
 
-	if ( vFile.getMinorVersion() > 2 )
+	if ( vFile.getVersion() > 2 )
 	{
 		if ( pResourceTab->pLodControlResourceCheckBox->isChecked() )
 		{
@@ -218,7 +218,7 @@ std::unique_ptr<vtfpp::VTF> VTFEImport::GenerateVTF( VTFErrorType &err )
 				root.addChild( "Comments", pResourceTab->pInformationResouceComments->text().toUtf8().constData() );
 			}
 			auto kvd = pVMTFile.bake();
-			vFile.setKeyValuesData( kvd );
+			vFile.setKeyValuesDataResource( kvd );
 		}
 	}
 
@@ -226,7 +226,7 @@ std::unique_ptr<vtfpp::VTF> VTFEImport::GenerateVTF( VTFErrorType &err )
 	return std::make_unique<vtfpp::VTF>( vFile.bake() );
 }
 
-void VTFEImport::AddImage( const QString &qString )
+void VTFEImport::addImage( const QString &qString )
 {
 	int currentSize = threadsImported;
 	while ( importThreads.size() > 12 )
@@ -270,7 +270,7 @@ void VTFEImport::AddImage( const QString &qString )
 	threadsImported++;
 }
 
-void VTFEImport::AddImage( const QImage &iamge )
+void VTFEImport::addImage( const QImage &iamge )
 {
 	int currentSize = threadsImported;
 	auto lamb = [this, currentSize, iamge]() mutable
@@ -417,8 +417,8 @@ VTFEImport *VTFEImport::FromVTF( QWidget *pParent, const vtfpp::VTF *pFile )
 	auto vVTFImport = new VTFEImport( pParent );
 	vVTFImport->editVTF( newVTF );
 	vVTFImport->InitializeWidgets();
-	vVTFImport->pAdvancedTab->pVtfVersionBox->setCurrentIndex( pFile->getMinorVersion() );
-	emit vVTFImport->pAdvancedTab->pVtfVersionBox->currentTextChanged( "7." + QString::number( pFile->getMinorVersion() ) );
+	vVTFImport->pAdvancedTab->pVtfVersionBox->setCurrentIndex( pFile->getVersion() );
+	emit vVTFImport->pAdvancedTab->pVtfVersionBox->currentTextChanged( "7." + QString::number( pFile->getVersion() ) );
 #ifdef CHAOS_INITIATIVE
 	vVTFImport->pAdvancedTab->pAuxCompressionBox->setChecked( pFile->getResource( vtfpp::Resource::TYPE_AUX_COMPRESSION )->getDataAsAuxCompressionLevel() > 0 );
 	emit vVTFImport->pAdvancedTab->pAuxCompressionBox->clicked( pFile->getResource( vtfpp::Resource::TYPE_AUX_COMPRESSION )->getDataAsAuxCompressionLevel() > 0 );
@@ -439,9 +439,9 @@ VTFEImport *VTFEImport::FromVTF( QWidget *pParent, const vtfpp::VTF *pFile )
 	vVTFImport->pAdvancedTab->pLuminanceWeightGreenBox->setValue( v[1] );
 	vVTFImport->pAdvancedTab->pLuminanceWeightBlueBox->setValue( v[2] );
 
-	vVTFImport->pGeneralTab->pSRGBCheckbox->setChecked( pFile->getFlags() & vtfpp::VTF::FLAG_SRGB );
+	vVTFImport->pGeneralTab->pSRGBCheckbox->setChecked( pFile->getFlags() & vtfpp::VTF::FLAG_V5_SRGB );
 
-	vVTFImport->vtfImageFlags = pFile->getFlags();
+	vVTFImport->vtfImageFlags = static_cast<vtfpp::VTF::Flags>( pFile->getFlags() );
 	//	return this;
 	//
 	//	auto vVTFImport = new VTFEImport( pParent );
@@ -649,7 +649,7 @@ void GeneralTab::GeneralResize()
 	pResizeFilterCombo = new QComboBox( this );
 	pResizeFilterCombo->addItem( tr( "Default" ), (int)vtfpp::ImageConversion::ResizeFilter::DEFAULT );
 	pResizeFilterCombo->addItem( tr( "Bi-linear" ), (int)vtfpp::ImageConversion::ResizeFilter::BILINEAR );
-	pResizeFilterCombo->addItem( tr( "Catmullrom" ), (int)vtfpp::ImageConversion::ResizeFilter::CATMULLROM );
+	pResizeFilterCombo->addItem( tr( "Catmullrom" ), (int)vtfpp::ImageConversion::ResizeFilter::CATMULL_ROM );
 	pResizeFilterCombo->addItem( tr( "Cubic BSpline" ), (int)vtfpp::ImageConversion::ResizeFilter::CUBIC_BSPLINE );
 	pResizeFilterCombo->addItem( tr( "Mitchell" ), (int)vtfpp::ImageConversion::ResizeFilter::MITCHELL );
 	pResizeFilterCombo->addItem( tr( "Box" ), (int)vtfpp::ImageConversion::ResizeFilter::BOX );
@@ -735,7 +735,7 @@ void GeneralTab::GeneralMipMaps()
 	pMipmapFilterCombo = new QComboBox( this );
 	pMipmapFilterCombo->addItem( tr( "Default" ), (int)vtfpp::ImageConversion::ResizeFilter::DEFAULT );
 	pMipmapFilterCombo->addItem( tr( "Bi-linear" ), (int)vtfpp::ImageConversion::ResizeFilter::BILINEAR );
-	pMipmapFilterCombo->addItem( tr( "Catmullrom" ), (int)vtfpp::ImageConversion::ResizeFilter::CATMULLROM );
+	pMipmapFilterCombo->addItem( tr( "Catmullrom" ), (int)vtfpp::ImageConversion::ResizeFilter::CATMULL_ROM );
 	pMipmapFilterCombo->addItem( tr( "Cubic BSpline" ), (int)vtfpp::ImageConversion::ResizeFilter::CUBIC_BSPLINE );
 	pMipmapFilterCombo->addItem( tr( "Mitchell" ), (int)vtfpp::ImageConversion::ResizeFilter::MITCHELL );
 	pMipmapFilterCombo->addItem( tr( "Box" ), (int)vtfpp::ImageConversion::ResizeFilter::BOX );
@@ -797,13 +797,13 @@ void GeneralTab::GeneralCustomMipmaps()
 
 			connect( mipMapButton, &QPushButton::clicked, this, [&, parent, pFrameBox, pFaceBox, pSliceBox, i, uiMipHeight, uiMipWidth]()
 					 {
-						 auto recentPaths = Options::get<QStringList>( STR_OPEN_RECENT );
+						 //						 auto recentPaths = Options::get<QStringList>( STR_OPEN_RECENT );
 
-						 auto imagePath = QFileDialog::getOpenFileName( this, "Open Custom Mipmap", recentPaths.last(), ui::CMainWindow::supportedWildcardImageList.join( " " ) );
+						 auto imagePath = QFileDialog::getOpenFileName( this, "Open Custom Mipmap", "/", ui::CMainWindow::supportedWildcardImageList.join( " " ) );
 						 if ( imagePath.isEmpty() || !QFile( imagePath ).exists() )
 							 return;
 
-						 parent->AddImage( imagePath );
+						 parent->addImage( imagePath );
 						 // auto data = parent->imageList[{ static_cast<uint16_t>( pFrameBox->value() ), static_cast<uint8_t>( pFaceBox->value() ), static_cast<uint16_t>( pSliceBox->value() ), 0 }];
 
 						 //						 auto newRawData = vtfpp::ImageConversion::resizeImageData( data->getData(), data->getFormat(), data->getWidth(), uiMipWidth, data->getHeight(), uiMipHeight, false, vtfpp::ImageConversion::ResizeFilter::DEFAULT );
@@ -1505,7 +1505,7 @@ ImageProcessor::ImageProcessor( VTFEImport *parent ) :
 //						 if ( imagePath.isEmpty() || !QFile( imagePath ).exists() )
 //							 return;
 //
-//						 parent->AddImage( imagePath, i );
+//						 parent->addImage( imagePath, i );
 //						 // auto data = parent->imageList[{ static_cast<uint16_t>( pFrameBox->value() ), static_cast<uint8_t>( pFaceBox->value() ), static_cast<uint16_t>( pSliceBox->value() ), 0 }];
 //
 //						 //						 auto newRawData = vtfpp::ImageConversion::resizeImageData( data->getData(), data->getFormat(), data->getWidth(), uiMipWidth, data->getHeight(), uiMipHeight, false, vtfpp::ImageConversion::ResizeFilter::DEFAULT );
@@ -1557,4 +1557,30 @@ void ImageProcessor::QMultiDragListWidget::dropEvent( QDropEvent *event )
 	}
 
 	QListWidget::dropEvent( event );
+}
+VTFEImport::VTFEImport( QWidget *pParent, vtfpp::VTF *vtf ) :
+	editableVTF( vtf )
+{
+	for ( uint16_t i = 0; i < this->editableVTF->getFrameCount(); i++ )
+		for ( uint16_t j = 0; j < this->editableVTF->getFaceCount(); j++ )
+			for ( uint16_t k = 0; k < this->editableVTF->getDepth(); k++ )
+				for ( uint16_t l = 0; l < this->editableVTF->getMipCount(); l++ )
+				{
+					this->imageList[this->imageList.count()] = ( new VTFEImageContainer( this->editableVTF->getImageDataRaw( l, i, j, k ).data(), this->editableVTF->getWidth( l ), this->editableVTF->getHeight( l ), this->editableVTF->getFormat() ) );
+				}
+
+	SetDefaults();
+
+	InitializeWidgets();
+
+	//	pGeneralTab->pFormatCombo->setCurrentIndex( pGeneralTab->pFormatCombo->findData( static_cast<uint32_t>( grabFirst()->getFormat() ) ) );
+}
+void VTFEImport::addImage( const QStringList &list )
+{
+	for ( const QString &str : list )
+		addImage( str );
+}
+QString VTFEImport::getFileName()
+{
+	return "Unidentified.";
 }

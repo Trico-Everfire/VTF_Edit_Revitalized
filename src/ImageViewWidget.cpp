@@ -2,6 +2,7 @@
 #include "ImageViewWidget.h"
 
 #include <QColorSpace>
+#include <QOpenGLPixelTransferOptions>
 #include <QPainter>
 #include <QStyleOption>
 #include <QWheelEvent>
@@ -138,7 +139,7 @@ void ImageViewWidget::paintGL()
 		sheetData = QVector4D( 0.f, 1.f, 1.f, 0.f );
 
 	else
-		sheetData = QVector4D( this->spriteSheet_.left, this->spriteSheet_.top, this->spriteSheet_.right, this->spriteSheet_.bottom );
+		sheetData = QVector4D( this->spriteSheet_.x1, this->spriteSheet_.y1, this->spriteSheet_.x2, this->spriteSheet_.y2 );
 
 	GLfloat texCoords[] = {
 		// positions          // colors           // texture coords
@@ -221,43 +222,166 @@ void ImageViewWidget::paintGL()
 		GLuint width, height;
 		width = vtfpp::ImageDimensions::getMipDim( mip_, file_->getWidth() );
 		height = vtfpp::ImageDimensions::getMipDim( mip_, file_->getHeight() );
+		//		if ( vtfpp::ImageFormatDetails::compressed( file_->getFormat() ) )
+		//		{
+		//			auto dat = file_->getImageDataRaw( mip_, frame_, face_ - 1, 0 );
+		//			texture.create();
+		//			texture.setFormat( mapVTFToGLFormat( file_->getFormat() ) );
+		//			texture.setSize( width, height, 1 );
+		//			texture.allocateStorage();
+		//			texture.setCompressedData( dat.size(), dat.data() );
+		//			// texture.setData( QOpenGLTexture::RGBA, QOpenGLTexture::Float32, dat.data() );
+		//			shaderProgram->setUniformValue( GammaLocation, (float)getHDRGamma() / 100 );
+		//		}
+		//		else if ( this->hasSpriteSheetLocation_ && file_->getResource( vtfpp::Resource::TYPE_PARTICLE_SHEET_DATA ) )
+		//		{
+		//			projectionMatrix.setColumn( 1, { 0, -projectionMatrix.column( 1 )[1], 0, 0 } );
+		//
+		//			auto dat = file_->getImageDataAsRGBA8888( mip_, frame_, face_ - 1, 0 );
+		//			texture.setMinMagFilters( QOpenGLTexture::Linear, QOpenGLTexture::Linear );
+		//			texture.create();
+		//			texture.setSize( width, height, 1 );
+		//			texture.setFormat( QOpenGLTexture::RGBA8_UNorm );
+		//			texture.allocateStorage();
+		//			texture.setData( QOpenGLTexture::RGBA, QOpenGLTexture::UInt8, dat.data() );
+		//			shaderProgram->setUniformValue( GammaLocation, -1.0f );
+		//		}
+		//		else
+		//			if ( vtfpp::ImageFormatDetails::large( file_->getFormat() ) )
+		//		{
+		//			float vtfAspect = (float)width / (float)height;
+		//			projectionMatrix.setColumn( 0, { projectionMatrix.column( 0 )[0] * vtfAspect, 0, 0, 0 } );
+		//
+		//			auto dat = file_->getImageDataAs( vtfpp::ImageFormat::RGBA32323232F, mip_, frame_, face_ - 1, 0 );
+		//			texture.create();
+		//
+		//			texture.setSize( width, height, 1 );
+		//			texture.setFormat( QOpenGLTexture::RGBA32F );
+		//			texture.allocateStorage();
+		//			texture.setData( QOpenGLTexture::RGBA, QOpenGLTexture::Float32, dat.data() );
+		//			shaderProgram->setUniformValue( GammaLocation, (float)getHDRGamma() / 100 );
+		//		}
+		//		else
+
+		auto fmt = mapVTFToGLFormat( file_->getFormat() );
+
+		std::vector<std::byte> dat;
+
+		texture.create();
+		texture.setFormat( fmt );
+		texture.setSize( width, height, 1 );
+		texture.allocateStorage();
 
 		if ( this->hasSpriteSheetLocation_ && file_->getResource( vtfpp::Resource::TYPE_PARTICLE_SHEET_DATA ) )
 		{
-			projectionMatrix.setColumn( 1, { 0, -projectionMatrix.column( 1 )[1], 0, 0 } );
-
-			auto dat = file_->getImageDataAsRGBA8888( mip_, frame_, face_ - 1, 0 );
 			texture.setMinMagFilters( QOpenGLTexture::Linear, QOpenGLTexture::Linear );
-			texture.create();
-			texture.setSize( width, height, 1 );
-			texture.setFormat( QOpenGLTexture::RGBA8_UNorm );
-			texture.allocateStorage();
-			texture.setData( QOpenGLTexture::RGBA, QOpenGLTexture::UInt8, dat.data() );
-			shaderProgram->setUniformValue( GammaLocation, -1.0f );
-		}
-		else if ( vtfpp::ImageFormatDetails::large( file_->getFormat() ) )
-		{
-			float vtfAspect = (float)width / (float)height;
-			projectionMatrix.setColumn( 0, { projectionMatrix.column( 0 )[0] * vtfAspect, 0, 0, 0 } );
-
-			auto dat = file_->getImageDataAs( vtfpp::ImageFormat::RGBA32323232F, mip_, frame_, face_ - 1, 0 );
-			texture.create();
-			texture.setSize( width, height, 1 );
-			texture.setFormat( QOpenGLTexture::RGBA32F );
-			texture.allocateStorage();
-			texture.setData( QOpenGLTexture::RGBA, QOpenGLTexture::Float32, dat.data() );
-			shaderProgram->setUniformValue( GammaLocation, (float)getHDRGamma() / 100 );
+			projectionMatrix.setColumn( 1, { 0, -projectionMatrix.column( 1 )[1], 0, 0 } );
 		}
 		else
 		{
 			float vtfAspect = (float)width / (float)height;
 			projectionMatrix.setColumn( 0, { projectionMatrix.column( 0 )[0] * vtfAspect, 0, 0, 0 } );
+		}
 
+		if ( vtfpp::ImageFormatDetails::large( file_->getFormat() ) )
+			shaderProgram->setUniformValue( GammaLocation, (float)getHDRGamma() / 100 );
+		else
 			shaderProgram->setUniformValue( GammaLocation, -1.0f );
 
-			auto dat = file_->getImageDataAsRGBA8888( mip_, frame_, face_ - 1, 0 );
-			texture.create();
-			texture.setData( QImage( reinterpret_cast<const uchar *>( dat.data() ), width, height, QImage::Format_RGBA8888 ) );
+		switch ( fmt )
+		{
+			case QOpenGLTexture::RGBA8_UNorm:
+				dat = file_->getImageDataAsRGBA8888( mip_, frame_, face_ - 1, 0 );
+				texture.setData( QOpenGLTexture::RGBA, QOpenGLTexture::UInt8, dat.data() );
+				break;
+
+			case QOpenGLTexture::RGB8_UNorm:
+				dat = file_->getImageDataAs( vtfpp::ImageFormat::RGB888, mip_, frame_, face_ - 1, 0 );
+				texture.setData( QOpenGLTexture::RGB, QOpenGLTexture::UInt8, dat.data() );
+				break;
+
+			case QOpenGLTexture::R5G6B5:
+				dat = file_->getImageDataAs( vtfpp::ImageFormat::RGB565, mip_, frame_, face_ - 1, 0 );
+				texture.setData( QOpenGLTexture::RGB, QOpenGLTexture::UInt16_R5G6B5, dat.data() );
+				break;
+
+			case QOpenGLTexture::R8_UNorm:
+				dat = file_->getImageDataAs( vtfpp::ImageFormat::R8, mip_, frame_, face_ - 1, 0 );
+				texture.setData( QOpenGLTexture::Red, QOpenGLTexture::UInt8, dat.data() );
+				break;
+
+			case QOpenGLTexture::RGB5A1:
+				dat = file_->getImageDataAs( vtfpp::ImageFormat::BGRA5551, mip_, frame_, face_ - 1, 0 );
+				texture.setData( QOpenGLTexture::BGRA, QOpenGLTexture::UInt16_RGB5A1, dat.data() );
+				break;
+
+			case QOpenGLTexture::RG8I:
+				dat = file_->getImageDataAs( vtfpp::ImageFormat::UV88, mip_, frame_, face_ - 1, 0 );
+				texture.setData( QOpenGLTexture::RG, QOpenGLTexture::UInt8, dat.data() );
+				break;
+
+			case QOpenGLTexture::RGBA16I:
+				dat = file_->getImageDataAs( vtfpp::ImageFormat::RGBA16161616, mip_, frame_, face_ - 1, 0 );
+				texture.setData( QOpenGLTexture::RGBA, QOpenGLTexture::UInt16, dat.data() );
+				break;
+
+			case QOpenGLTexture::RGB10A2:
+				dat = file_->getImageDataAs( vtfpp::ImageFormat::RGBA1010102, mip_, frame_, face_ - 1, 0 );
+				texture.setData( QOpenGLTexture::RGB, QOpenGLTexture::UInt32_RGB10A2, dat.data() );
+				break;
+
+			case QOpenGLTexture::RGBA4:
+				dat = file_->getImageDataAs( vtfpp::ImageFormat::BGRA4444, mip_, frame_, face_ - 1, 0 );
+				texture.setData( QOpenGLTexture::BGRA, QOpenGLTexture::UInt16_RGBA4, dat.data() );
+				break;
+
+			case QOpenGLTexture::RGBA16F:
+				dat = file_->getImageDataAs( vtfpp::ImageFormat::RGBA16161616F, mip_, frame_, face_ - 1, 0 );
+				texture.setData( QOpenGLTexture::RGBA, QOpenGLTexture::Float16, dat.data() );
+				break;
+
+			case QOpenGLTexture::R32F:
+				dat = file_->getImageDataAs( vtfpp::ImageFormat::R32F, mip_, frame_, face_ - 1, 0 );
+				texture.setData( QOpenGLTexture::Red, QOpenGLTexture::Float32, dat.data() );
+				break;
+			case QOpenGLTexture::RGB32F:
+				dat = file_->getImageDataAs( vtfpp::ImageFormat::RGB323232F, mip_, frame_, face_ - 1, 0 );
+				texture.setData( QOpenGLTexture::RGB, QOpenGLTexture::Float32, dat.data() );
+				break;
+
+			case QOpenGLTexture::RGBA32F:
+				dat = file_->getImageDataAs( vtfpp::ImageFormat::RGBA32323232F, mip_, frame_, face_ - 1, 0 );
+				texture.setData( QOpenGLTexture::RGBA, QOpenGLTexture::Float32, dat.data() );
+				break;
+
+			case QOpenGLTexture::RG16F:
+				dat = file_->getImageDataAs( vtfpp::ImageFormat::RG1616F, mip_, frame_, face_ - 1, 0 );
+				texture.setData( QOpenGLTexture::RG, QOpenGLTexture::Float16, dat.data() );
+				break;
+
+			case QOpenGLTexture::RG32F:
+				dat = file_->getImageDataAs( vtfpp::ImageFormat::RG3232F, mip_, frame_, face_ - 1, 0 );
+				texture.setData( QOpenGLTexture::RG, QOpenGLTexture::Float32, dat.data() );
+				break;
+
+			case QOpenGLTexture::R16F:
+				dat = file_->getImageDataAs( vtfpp::ImageFormat::R16F, mip_, frame_, face_ - 1, 0 );
+				texture.setData( QOpenGLTexture::Red, QOpenGLTexture::Float16, dat.data() );
+				break;
+
+			default:
+			{
+				if ( vtfpp::ImageFormatDetails::compressed( file_->getFormat() ) )
+				{
+					auto rawDat = file_->getImageDataRaw( mip_, frame_, face_ - 1, 0 );
+					texture.setCompressedData( rawDat.size(), rawDat.data() );
+					break;
+				}
+				// Well, we tried.
+				dat = file_->getImageDataAsRGBA8888( mip_, frame_, face_ - 1, 0 );
+				texture.setData( QOpenGLTexture::RGBA, QOpenGLTexture::UInt8, dat.data() );
+				break;
+			}
 		}
 		texture.bind( 0 );
 	}

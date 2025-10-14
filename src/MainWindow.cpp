@@ -37,7 +37,12 @@ using namespace ui;
 CMainWindow::CMainWindow() :
 	QMainWindow()
 {
-	this->options = new ApplicationOptions( this );
+	this->options = ApplicationOptions::getInstance();
+
+	auto themeOptions = this->options->get( OPT_THEME_SETTINGS, ApplicationOptions::themeSettingsDefault ).toObject();
+	auto selectedPalette = ApplicationOptions::getTheme( themeOptions.value( "theme" ).toVariant().value<ApplicationOptions::ApplicationPaletteOptions>() );
+
+	QApplication::setPalette( selectedPalette );
 
 	setAcceptDrops( true );
 
@@ -111,6 +116,10 @@ CMainWindow::CMainWindow() :
 	pResourceWidget = new ResourceWidget( this );
 
 	pInfoResourceTabWidget->addTab( pResourceWidget, "Resources" );
+
+	pAdditionalInformationWidget = new AdditionalInformationWidget( this );
+
+	pInfoResourceTabWidget->addTab( pAdditionalInformationWidget, "Additional Information" );
 
 	pMainLayout->addWidget( pInfoResourceTabWidget, 0, 2, 2, 1, Qt::AlignRight );
 
@@ -209,7 +218,8 @@ CMainWindow::CMainWindow() :
 
 	connect( pImageViewWidget, &ImageViewWidget::onRightClick, this, [this]()
 			 {
-				 auto ind = pImageTabWidget->tabData( pImageTabWidget->currentIndex() ).value<intptr_t>();
+				 auto current_index = pImageTabWidget->currentIndex();
+				 auto ind = pImageTabWidget->tabData( current_index ).value<intptr_t>();
 				 auto vtf = vtfWidgetList.value( ind );
 
 				 if ( !vtf )
@@ -217,14 +227,17 @@ CMainWindow::CMainWindow() :
 
 				 QMenu *menu = new QMenu( this );
 				 auto save = menu->addAction( "Save" );
+				 auto saveAs = menu->addAction( "Save As" );
 				 auto copy = menu->addAction( "Copy" );
 				 auto edit = menu->addAction( "Edit" );
+				 auto remove = menu->addAction( "Remove" );
 				 connect( save, &QAction::triggered, this, &CMainWindow::saveCurrentVTFToFile );
+				 connect( saveAs, &QAction::triggered, this, &CMainWindow::saveCurrentVTFToFileAs );
 				 connect( copy, &QAction::triggered, this, [this, vtf]
 						  {
 							  int fr, fa, p, s;
 							  pImageSettingsWidget->aquireFFPS( fr, fa, p, s );
-							  auto data = vtf->getImageDataAsRGBA8888( p, 0, 0, 0 );
+							  auto data = vtf->getImageDataAsRGBA8888( p, fr, fa - 1, s );
 
 							  auto img = QImage( (const unsigned char *)data.data(), (int)vtf->getWidth( p ), (int)vtf->getHeight( p ), QImage::Format_RGBA8888 );
 
@@ -233,11 +246,28 @@ CMainWindow::CMainWindow() :
 
 							  QApplication::clipboard()->setPixmap( QPixmap::fromImage( img ) );
 						  } );
-				 connect( edit, &QAction::triggered, this, [this]
+				 connect( edit, &QAction::triggered, this, [&, ind]
 						  {
-							  // getVTFFromVTFFile();
-						  } );
+							  if ( pImageTabWidget->count() < 1 )
+								  return;
 
+							  //							  const auto key = pImageTabWidget->tabData( ind ).value<intptr_t>();
+							  if ( !this->vtfWidgetList.contains( ind ) )
+								  return;
+							  //
+							  auto pVTF = &this->vtfWidgetList[ind];
+							  auto editVTFDialog = std::make_unique<CVTFCreationDialog>( this, pVTF->vtf );
+
+							  if ( editVTFDialog->exec() == QDialog::Rejected )
+								  return;
+							  pVTF->hasSaved = false;
+							  pImageTabWidget->hasFilesChanged();
+							  emit pImageTabWidget->currentChanged( pImageTabWidget->currentIndex() );
+						  } );
+				 connect( remove, &QAction::triggered, this, [&, current_index]
+						  {
+							  this->removeVTFTab( current_index );
+						  } );
 				 menu->popup( QCursor::pos() );
 			 } );
 
@@ -265,9 +295,10 @@ CMainWindow::CMainWindow() :
 
 	new QShortcut( QKeySequence( Qt::CTRL | Qt::Key_Q ), this, SLOT( close() ) );
 	new QShortcut( QKeySequence( Qt::CTRL | Qt::Key_S ), this, SLOT( saveCurrentVTFToFile() ) );
+	new QShortcut( QKeySequence( QKeyCombination( Qt::CTRL | Qt::SHIFT | Qt::Key_S ) ), this, SLOT( saveCurrentVTFToFileAs() ) );
 	new QShortcut( QKeyCombination( Qt::CTRL | Qt::ALT | Qt::SHIFT, Qt::Key_S ), this, SLOT( saveAllVTFsToFiles() ) );
 	new QShortcut( QKeySequence( Qt::CTRL | Qt::Key_V ), this, SLOT( onPaste() ) );
-	new QShortcut( QKeyCombination( Qt::CTRL | Qt::ALT, Qt::Key_O ), options, SLOT( open() ) );
+	//	new QShortcut( QKeyCombination( Qt::CTRL | Qt::ALT, Qt::Key_O ), options, SLOT( open() ) );
 }
 
 bool CMainWindow::separateSpriteSheetVTF()
@@ -288,7 +319,7 @@ bool CMainWindow::separateSpriteSheetVTF()
 	if ( saveLocation.isEmpty() )
 		return false;
 
-	auto spriteSheetData = pVTF->getResource( vtfpp::Resource::TYPE_PARTICLE_SHEET_DATA )->getSpriteSheet();
+	auto spriteSheetData = pVTF->getResource( vtfpp::Resource::TYPE_PARTICLE_SHEET_DATA )->getDataAsParticleSheet();
 
 	return true;
 };
@@ -302,7 +333,7 @@ void CMainWindow::onPaste()
 
 	auto clipboardVTF = new vtfpp::VTF();
 
-	auto processVTF = std::make_unique<ProcessVTF>( this, clipboardVTF );
+	auto processVTF = std::make_unique<CVTFCreationDialog>( this, clipboardVTF );
 
 	processVTF->addImage( imageBoard->image() );
 
@@ -350,8 +381,16 @@ void CMainWindow::removeVTFTab( int index )
 {
 	// we own the VTF, so we dispose of it too.
 	const auto key = pImageTabWidget->tabData( index ).value<intptr_t>();
-
 	auto vtf = this->vtfWidgetList.value( key );
+
+	if ( !vtf.hasSaved )
+	{
+		auto dialogResult = QMessageBox::question( this, "Save VTF?", "Unsaved changes. Do you want to save the VTF?", QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel );
+		if ( dialogResult == QMessageBox::Yes )
+			saveVTFToFile( key );
+		if ( dialogResult == QMessageBox::Cancel )
+			return;
+	}
 
 	this->vtfWidgetList.remove( key );
 
@@ -359,6 +398,7 @@ void CMainWindow::removeVTFTab( int index )
 	{
 		pImageViewWidget->set_vtf( nullptr );
 		pResourceWidget->set_vtf( nullptr );
+		pAdditionalInformationWidget->set_vtf( nullptr );
 		pImageSettingsWidget->set_vtf( { nullptr } );
 		pImageInfo->update_info( nullptr );
 	}
@@ -378,7 +418,8 @@ void CMainWindow::tabChanged( int index )
 	pImageViewWidget->set_rgba( redBox->isChecked(), greenBox->isChecked(), blueBox->isChecked(), alphaBox->isChecked() );
 	pImageViewWidget->stopAnimating();
 	pResourceWidget->set_vtf( pVTF.vtf );
-	pImageSettingsWidget->set_vtf( { nullptr } );
+	pAdditionalInformationWidget->set_vtf( pVTF.vtf );
+	//	pImageSettingsWidget->set_vtf( { nullptr } );
 	pImageSettingsWidget->set_vtf( pVTF );
 	pImageInfo->update_info( pVTF.vtf );
 
@@ -397,16 +438,17 @@ void CMainWindow::setupMenuBar()
 	auto pFileMenuTab = m_pMainMenuBar->addMenu( "File" );
 	pFileMenuTab->addAction( "Open", this, &CMainWindow::openVTF );
 	pFileMenuTab->addAction( "Save", this, &CMainWindow::saveCurrentVTFToFile );
+	pFileMenuTab->addAction( "Save As", this, &CMainWindow::saveCurrentVTFToFileAs );
 	pFileMenuTab->addAction( "Save All", this, &CMainWindow::saveAllVTFsToFiles );
 	pFileMenuTab->addAction( "Export", this, &CMainWindow::exportVTFToFile );
 	pFileMenuTab->addAction( "Import...", this, &CMainWindow::importFromFile );
 
 	auto pToolMenuTab = m_pMainMenuBar->addMenu( "Tools" );
-	pToolMenuTab->addAction( "VTF Version Editor (Individual)", this, &CMainWindow::compressVTFFile );
-	pToolMenuTab->addAction( "VTF Version Editor (Batch)", this, &CMainWindow::compressVTFFolder );
-	pToolMenuTab->addAction( "Batch Convert", this, &CMainWindow::batchConvert );
+	pToolMenuTab->addAction( "VTF Version Editor (Individual)", this, &CMainWindow::compressVTFFile )->setDisabled( true );
+	pToolMenuTab->addAction( "VTF Version Editor (Batch)", this, &CMainWindow::compressVTFFolder )->setDisabled( true );
+	pToolMenuTab->addAction( "Batch Convert", this, &CMainWindow::batchConvert )->setDisabled( true );
 	pToolMenuTab->addAction( "FontToVTF", this, &CMainWindow::fontToVTF );
-	pToolMenuTab->addAction( "Combine RGBA / Create MRAO", this, &CMainWindow::importMRAO );
+	pToolMenuTab->addAction( "Combine RGBA / Create MRAO", this, &CMainWindow::importMRAO )->setDisabled( true );
 
 	auto pViewMenu = m_pMainMenuBar->addMenu( "View" );
 	redBox = createCheckableAction( "Red", pViewMenu );
@@ -435,7 +477,7 @@ void CMainWindow::setupMenuBar()
 	pViewMenu->addAction( alphaBox );
 
 	auto pHelpMenu = m_pMainMenuBar->addMenu( "Help" );
-	pHelpMenu->addAction( "Options", options, SLOT( open() ) );
+	//	pHelpMenu->addAction( "Options", options, SLOT( open() ) );
 
 	auto pAbout = m_pMainMenuBar->addMenu( "About" );
 	pAbout->addAction( "About QT", qApp, &QApplication::aboutQt );
@@ -452,8 +494,9 @@ QAction *CMainWindow::createCheckableAction( const QString &name, QObject *paren
 
 void CMainWindow::compressVTFFile()
 {
-#ifdef COMPRESSVTF
-	auto recentPaths = options->get<QStringList>( STR_OPEN_RECENT );
+	auto configurationMenu = new CVTFCreationDialog( this, nullptr );
+
+	auto recentPaths = options->get( STR_OPEN_RECENT ).toVariant().toStringList();
 
 	QStringList filePaths = QFileDialog::getOpenFileNames(
 		this, "Open VTF", recentPaths.last(), "*.vtf", nullptr, QFileDialog::Option::DontUseNativeDialog );
@@ -464,7 +507,37 @@ void CMainWindow::compressVTFFile()
 	if ( recentPaths.contains( filePaths[0] ) )
 		recentPaths.removeAt( recentPaths.indexOf( filePaths[0] ) );
 	recentPaths.push_back( filePaths[0] );
-	options->set( STR_OPEN_RECENT, recentPaths );
+
+	options->set( STR_OPEN_RECENT, QVariant( recentPaths.toList() ).toJsonValue() );
+
+	configurationMenu->exec();
+
+	for ( const auto &path : recentPaths )
+	{
+		auto vtf = std::make_unique<vtfpp::VTF>( path.toStdString() );
+		if ( !vtf )
+			return;
+
+		configurationMenu->setVTF( vtf.get() );
+		configurationMenu->applyChanges();
+	}
+	//	configurationMenu->applyChanges()
+
+	return;
+#ifdef FALSE
+	auto recentPaths = options->get( STR_OPEN_RECENT ).toVariant().toStringList();
+
+	QStringList filePaths = QFileDialog::getOpenFileNames(
+		this, "Open VTF", recentPaths.last(), "*.vtf", nullptr, QFileDialog::Option::DontUseNativeDialog );
+
+	if ( filePaths.isEmpty() )
+		return;
+
+	if ( recentPaths.contains( filePaths[0] ) )
+		recentPaths.removeAt( recentPaths.indexOf( filePaths[0] ) );
+	recentPaths.push_back( filePaths[0] );
+
+	options->set( STR_OPEN_RECENT, QVariant( recentPaths.toList() ).toJsonValue() );
 
 	auto pCompressionDialog = new QDialog( this );
 	pCompressionDialog->setWindowTitle( "VTF Version Editor" );
@@ -583,7 +656,7 @@ void CMainWindow::compressVTFFile()
 	if ( recentPaths.contains( pDestinationLocation->text() ) )
 		recentPaths.removeAt( recentPaths.indexOf( pDestinationLocation->text() ) );
 	recentPaths.push_back( pDestinationLocation->text() );
-	options->set( STR_OPEN_RECENT, recentPaths );
+	options->set( STR_OPEN_RECENT, QVariant( recentPaths.toList() ).toJsonValue() );
 
 	QString pathDirectory {};
 	if ( pCustomDestination->isChecked() )
@@ -608,14 +681,14 @@ void CMainWindow::compressVTFFile()
 		}
 
 #ifdef CHAOS_INITIATIVE
-		if ( pVTF->getMinorVersion() == pVtfVersionBox->currentData().toInt() && pVTF->getCompressionLevel() == pAuxCompressionLevelBox->currentData().toInt() )
+		if ( pVTF->getVersion() == pVtfVersionBox->currentData().toInt() && pVTF->getCompressionLevel() == pAuxCompressionLevelBox->currentData().toInt() )
 			continue;
 #else
-		if ( pVTF->GetMinorVersion() == pVtfVersionBox->currentData().toInt() )
+		if ( pVTF->getVersion() == pVtfVersionBox->currentData().toInt() )
 			continue;
 #endif
 
-		pVTF->setVersion( 7, pVtfVersionBox->currentData().toInt() );
+		pVTF->setVersion( pVtfVersionBox->currentData().toInt() );
 
 #ifdef CHAOS_INITIATIVE
 		if ( pAuxCompressionBox->isChecked() )
@@ -643,7 +716,7 @@ void CMainWindow::compressVTFFolder()
 {
 #ifdef COMPRESSVTF
 
-	auto recentPaths = options->get<QStringList>( STR_OPEN_RECENT );
+	auto recentPaths = options->get( STR_OPEN_RECENT ).toVariant().toStringList();
 	QString dirPath = QFileDialog::getExistingDirectory(
 		this, "Open VTF", recentPaths.last(), QFileDialog::Option::DontUseNativeDialog );
 
@@ -653,7 +726,7 @@ void CMainWindow::compressVTFFolder()
 	if ( recentPaths.contains( dirPath ) )
 		recentPaths.removeAt( recentPaths.indexOf( dirPath ) );
 	recentPaths.push_back( dirPath );
-	options->set( STR_OPEN_RECENT, recentPaths );
+	options->set( STR_OPEN_RECENT, QVariant( recentPaths.toList() ).toJsonValue() );
 
 	auto pCompressionDialog = new QDialog( this );
 	pCompressionDialog->setWindowTitle( "VTF Version Editor" );
@@ -772,7 +845,7 @@ void CMainWindow::compressVTFFolder()
 	if ( recentPaths.contains( pDestinationLocation->text() ) )
 		recentPaths.removeAt( recentPaths.indexOf( pDestinationLocation->text() ) );
 	recentPaths.push_back( pDestinationLocation->text() );
-	options->set( STR_OPEN_RECENT, recentPaths );
+	options->set( STR_OPEN_RECENT, QVariant( recentPaths.toList() ).toJsonValue() );
 
 	QString pathDirectory {};
 	if ( pCustomDestination->isChecked() )
@@ -822,13 +895,13 @@ void CMainWindow::compressVTFFolder()
 			continue;
 		}
 #ifdef CHAOS_INITIATIVE
-		if ( pVTF->getMinorVersion() == pVtfVersionBox->currentData().toInt() && pVTF->getCompressionLevel() == pAuxCompressionLevelBox->currentData().toInt() && pathDirectory.isEmpty() )
+		if ( pVTF->getVersion() == pVtfVersionBox->currentData().toInt() && pVTF->getCompressionLevel() == pAuxCompressionLevelBox->currentData().toInt() && pathDirectory.isEmpty() )
 			continue;
 #else
-		if ( pVTF->GetMinorVersion() == pVtfVersionBox->currentData().toInt() && pathDirectory.isEmpty() )
+		if ( pVTF->getVersion() == pVtfVersionBox->currentData().toInt() && pathDirectory.isEmpty() )
 			continue;
 #endif
-		pVTF->setVersion( 7, pVtfVersionBox->currentData().toInt() );
+		pVTF->setVersion( pVtfVersionBox->currentData().toInt() );
 
 #ifdef CHAOS_INITIATIVE
 		if ( pAuxCompressionBox->isChecked() )
@@ -960,9 +1033,9 @@ void CMainWindow::batchConvert()
 
 	batchConvertQDialog->resize( 0, 0 ); // Make the window the smallest it can be.
 
-	// auto pVTFImportWindow = VTFEImport::Standalone( this );
+	// auto pVTFImportWindow = CVTFCreationDialog::Standalone( this );
 	auto vtf = new vtfpp::VTF();
-	auto processVTF = std::make_unique<ProcessVTF>( this, vtf );
+	auto processVTF = std::make_unique<CVTFCreationDialog>( this, vtf );
 	connect( OptionsVTFConversionOptionDisplay, &QPushButton::pressed, this, [batchConvertQDialog]
 			 {
 				 auto displayDialog = new QDialog( batchConvertQDialog );
@@ -1029,7 +1102,7 @@ void CMainWindow::batchConvert()
 
 	batchConvertQDialog->exec();
 
-	//	auto recentPaths = options->get<QStringList>( STR_OPEN_RECENT );
+	//	auto recentPaths = options->get(STR_OPEN_RECENT).toVariant().toStringList();
 	//
 	//	QString importFrom = QFileDialog::getExistingDirectory(
 	//		this, "Import From", recentPaths.last(),
@@ -1052,9 +1125,9 @@ void CMainWindow::batchConvert()
 	//	if ( recentPaths.contains( exportTo ) )
 	//		recentPaths.removeAt( recentPaths.indexOf( exportTo ) );
 	//	recentPaths.push_back( exportTo );
-	//	options->set( STR_OPEN_RECENT, recentPaths );
+	//	options->set( STR_OPEN_RECENT, QVariant(recentPaths.toList()).toJsonValue() );
 	//
-	//	auto pVTFImportWindow = VTFEImport::Standalone( this );
+	//	auto pVTFImportWindow = CVTFCreationDialog::Standalone( this );
 	//
 	//	pVTFImportWindow->exec();
 	//
@@ -1177,7 +1250,7 @@ void CMainWindow::batchConvert()
 
 void CMainWindow::importFromFile()
 {
-	auto recentPaths = options->get<QStringList>( STR_OPEN_RECENT );
+	auto recentPaths = options->get( STR_OPEN_RECENT ).toVariant().toStringList();
 
 	QStringList filePaths = QFileDialog::getOpenFileNames(
 		this, "Open", recentPaths.last(), supportedWildcardImageList.join( " " ) + " *.vtf", nullptr,
@@ -1189,7 +1262,7 @@ void CMainWindow::importFromFile()
 	if ( recentPaths.contains( filePaths[0] ) )
 		recentPaths.removeAt( recentPaths.indexOf( filePaths[0] ) );
 	recentPaths.push_back( filePaths[0] );
-	options->set( STR_OPEN_RECENT, recentPaths );
+	options->set( STR_OPEN_RECENT, QVariant( recentPaths.toList() ).toJsonValue() );
 
 	foreach( auto str, filePaths )
 		if ( str.endsWith( ".vtf" ) )
@@ -1217,14 +1290,14 @@ void CMainWindow::NewVTFFromVTF( const QString &filePath )
 		return;
 	}
 
-	auto processVTF = std::make_unique<ProcessVTF>( this, pVTF );
+	auto processVTF = std::make_unique<CVTFCreationDialog>( this, pVTF );
 
 	if ( processVTF->exec() == QDialog::Rejected )
 	{
 		delete pVTF;
 		return;
 	}
-	//	auto pVTFImportWindow = VTFEImport::FromVTF( this, pVTF );
+	//	auto pVTFImportWindow = CVTFCreationDialog::FromVTF( this, pVTF );
 	//
 	//	pVTFImportWindow->exec();
 
@@ -1245,7 +1318,7 @@ void CMainWindow::NewVTFFromVTF( const QString &filePath )
 
 void CMainWindow::openVTF()
 {
-	auto recentPaths = options->get<QStringList>( STR_OPEN_RECENT );
+	auto recentPaths = options->get( STR_OPEN_RECENT ).toVariant().toStringList();
 
 	QString filePath = QFileDialog::getOpenFileName(
 		this, "Open VTF", recentPaths.last(), "*.vtf", nullptr, QFileDialog::Option::DontUseNativeDialog );
@@ -1256,7 +1329,7 @@ void CMainWindow::openVTF()
 	if ( recentPaths.contains( filePath ) )
 		recentPaths.removeAt( recentPaths.indexOf( filePath ) );
 	recentPaths.push_back( filePath );
-	options->set( STR_OPEN_RECENT, recentPaths );
+	options->set( STR_OPEN_RECENT, QVariant( recentPaths.toList() ).toJsonValue() );
 
 	if ( !QFileInfo( filePath ).isReadable() )
 		return;
@@ -1270,7 +1343,7 @@ void CMainWindow::generateVTFFromImage( const QString &filePath )
 		return;
 
 	auto pVTF = new vtfpp::VTF();
-	auto processVTF = std::make_unique<ProcessVTF>( this, pVTF );
+	auto processVTF = std::make_unique<CVTFCreationDialog>( this, pVTF );
 
 	processVTF->addImage( filePath );
 
@@ -1280,7 +1353,7 @@ void CMainWindow::generateVTFFromImage( const QString &filePath )
 		return;
 	}
 	//	bool canRun;
-	//	auto newWindow = new VTFEImport( this, filePath, canRun );
+	//	auto newWindow = new CVTFCreationDialog( this, filePath, canRun );
 	//
 	//	if ( !canRun )
 	//		return;
@@ -1306,7 +1379,7 @@ void CMainWindow::generateVTFFromImages( QStringList filePaths )
 		return;
 
 	auto pVTF = new vtfpp::VTF();
-	auto processVTF = std::make_unique<ProcessVTF>( this, pVTF );
+	auto processVTF = std::make_unique<CVTFCreationDialog>( this, pVTF );
 
 	processVTF->addImage( filePaths );
 
@@ -1317,7 +1390,7 @@ void CMainWindow::generateVTFFromImages( QStringList filePaths )
 	}
 
 	//	bool canRun;
-	//	auto newWindow = new VTFEImport( this, filePaths, canRun );
+	//	auto newWindow = new CVTFCreationDialog( this, filePaths, canRun );
 	//
 	//	if ( !canRun )
 	//		return;
@@ -1341,7 +1414,7 @@ void CMainWindow::generateVTFFromImages( QStringList filePaths )
 
 void CMainWindow::fontToVTF()
 {
-	auto recentPaths = options->get<QStringList>( STR_OPEN_RECENT );
+	auto recentPaths = options->get( STR_OPEN_RECENT ).toVariant().toStringList();
 
 	QString filePath = QFileDialog::getOpenFileName(
 		this, "Open TTF/OTF", recentPaths.last(), "*.ttf *.otf", nullptr, QFileDialog::Option::DontUseNativeDialog );
@@ -1352,7 +1425,7 @@ void CMainWindow::fontToVTF()
 	if ( recentPaths.contains( filePath ) )
 		recentPaths.removeAt( recentPaths.indexOf( filePath ) );
 	recentPaths.push_back( filePath );
-	options->set( STR_OPEN_RECENT, recentPaths );
+	options->set( STR_OPEN_RECENT, QVariant( recentPaths.toList() ).toJsonValue() );
 
 	generateVTFFromFont( filePath );
 }
@@ -1411,7 +1484,7 @@ void CMainWindow::generateVTFFromFont( const QString &filepath )
 	QFontDatabase::removeApplicationFont( id );
 
 	auto pVTF = new vtfpp::VTF();
-	auto processVTF = std::make_unique<ProcessVTF>( this, pVTF );
+	auto processVTF = std::make_unique<CVTFCreationDialog>( this, pVTF );
 	processVTF->addImage( image );
 
 	if ( processVTF->exec() == QDialog::Rejected )
@@ -1440,13 +1513,13 @@ void CMainWindow::exportVTFToFile()
 		fImageAmount = pVTF->getFaceCount();
 		type = 1;
 	}
-	if ( pVTF->getSliceCount() > fImageAmount )
+	if ( pVTF->getDepth() > fImageAmount )
 	{
-		fImageAmount = pVTF->getSliceCount();
+		fImageAmount = pVTF->getDepth();
 		type = 2;
 	}
 
-	auto recentPaths = options->get<QStringList>( STR_OPEN_RECENT );
+	auto recentPaths = options->get( STR_OPEN_RECENT ).toVariant().toStringList();
 
 	QString filePath = QFileDialog::getSaveFileName(
 		this, fImageAmount > 1 ? "Export to *" : "Export to _x*",
@@ -1459,7 +1532,7 @@ void CMainWindow::exportVTFToFile()
 	if ( recentPaths.contains( filePath ) )
 		recentPaths.removeAt( recentPaths.indexOf( filePath ) );
 	recentPaths.push_back( filePath );
-	options->set( STR_OPEN_RECENT, recentPaths );
+	options->set( STR_OPEN_RECENT, QVariant( recentPaths.toList() ).toJsonValue() );
 
 	for ( int i = 0; i < fImageAmount; i++ )
 	{
@@ -1504,7 +1577,7 @@ void CMainWindow::saveAllVTFsToFiles()
 		CMainWindow::saveVTFToFile( this->pImageTabWidget->tabData( i ).value<intptr_t>() );
 }
 
-void CMainWindow::saveVTFToFile( intptr_t key )
+void CMainWindow::saveVTFToFile( intptr_t key, bool saveAs )
 {
 	if ( !this->vtfWidgetList.contains( key ) )
 		return;
@@ -1513,13 +1586,12 @@ void CMainWindow::saveVTFToFile( intptr_t key )
 
 	QString filePath {};
 
-	auto recentPaths = options->get<QStringList>( STR_OPEN_RECENT );
-	if ( pVTF->path.isEmpty() )
+	auto recentPaths = options->get( STR_OPEN_RECENT ).toVariant().toStringList();
+	if ( pVTF->path.isEmpty() || saveAs )
 	{
 		filePath = QFileDialog::getSaveFileName(
 			this, "Save VTF",
-			QFileInfo( recentPaths.last() ).completeBaseName(), "*.vtf", nullptr,
-			QFileDialog::Option::DontUseNativeDialog );
+			QFileInfo( recentPaths.last() ).completeBaseName(), "*.vtf", nullptr );
 	}
 	else
 	{
@@ -1536,12 +1608,12 @@ void CMainWindow::saveVTFToFile( intptr_t key )
 
 	recentPaths.push_back( filePath );
 
-	options->set( STR_OPEN_RECENT, recentPaths );
+	options->set( STR_OPEN_RECENT, QVariant( recentPaths.toList() ).toJsonValue() );
 
 	if ( !filePath.endsWith( ".vtf" ) )
 		filePath.append( ".vtf" );
 
-	( *pVTF )->bake( filePath.toUtf8().constData() );
+	pVTF->vtf->bake( filePath.toUtf8().constData() );
 
 	pVTF->hasSaved = true;
 
@@ -1573,6 +1645,7 @@ void CMainWindow::dragEnterEvent( QDragEnterEvent *event )
 	}
 }
 #include <QJsonDocument>
+#include <QListView>
 #include <QStandardItemModel>
 #include <QThread>
 void CMainWindow::dropEvent( QDropEvent *event )
@@ -1625,16 +1698,16 @@ void CMainWindow::consoleParameters( const QStringList &params )
 	}
 }
 
-void CMainWindow::addFile( QString filePath )
+void CMainWindow::addFile( const QString &filePath )
 {
 	QString suffix = QFileInfo( filePath ).suffix();
 
-	auto recentPaths = options->get<QStringList>( STR_OPEN_RECENT );
+	auto recentPaths = options->get( STR_OPEN_RECENT ).toVariant().toStringList();
 
 	if ( recentPaths.contains( filePath ) )
 		recentPaths.removeAt( recentPaths.indexOf( filePath ) );
 	recentPaths.push_back( filePath );
-	options->set( STR_OPEN_RECENT, recentPaths );
+	options->set( STR_OPEN_RECENT, QVariant( recentPaths.toList() ).toJsonValue() );
 
 	if ( suffix == "vtf" )
 	{
@@ -1656,18 +1729,58 @@ void CMainWindow::addFile( QString filePath )
 }
 void CMainWindow::openTabContextMenu( int tab )
 {
-	auto ind = pImageTabWidget->tabData( tab ).value<intptr_t>();
-	auto vtf = vtfWidgetList.value( ind );
+	//	auto ind = pImageTabWidget->tabData( tab ).value<intptr_t>();
+	//	auto vtf = &vtfWidgetList.value( ind );
 	QMenu *menu = new QMenu( this );
 	auto save = menu->addAction( "Save" );
+	auto saveAs = menu->addAction( "SaveAs" );
 	auto edit = menu->addAction( "Edit" );
-	auto del = menu->addAction( "Delete" );
+	auto remove = menu->addAction( "Remove" );
+	connect( save, &QAction::triggered, this, &CMainWindow::saveCurrentVTFToFile );
+	connect( saveAs, &QAction::triggered, this, &CMainWindow::saveCurrentVTFToFileAs );
+	connect( edit, &QAction::triggered, this, [&, tab]
+			 {
+				 if ( pImageTabWidget->count() < 1 )
+					 return;
+
+				 const auto key = pImageTabWidget->tabData( tab ).value<intptr_t>();
+				 if ( !this->vtfWidgetList.contains( key ) )
+					 return;
+				 //
+				 auto pVTF = &this->vtfWidgetList[key];
+				 auto editVTFDialog = std::make_unique<CVTFCreationDialog>( this, pVTF->vtf );
+
+				 if ( editVTFDialog->exec() == QDialog::Rejected )
+					 return;
+				 pVTF->hasSaved = false;
+				 pImageTabWidget->hasFilesChanged();
+				 emit pImageTabWidget->currentChanged( tab );
+			 } );
+	connect( remove, &QAction::triggered, this, [&, tab]
+			 {
+				 this->removeVTFTab( tab );
+			 } );
 	menu->popup( QCursor::pos() );
 }
 void CMainWindow::processDroppedItems( const QStringList &paths )
 {
+	bool sameType = true;
+	QString firstPrefix = paths[0].split( "." ).last();
+	for ( auto &item : paths )
+	{
+		if ( item.split( "." ).last() != firstPrefix )
+			sameType = false;
+	}
+
+	if ( !sameType || paths.length() == 1 )
+	{
+		for ( auto &item : paths )
+			addFile( item );
+		return;
+	}
+
 	auto pVTF = new vtfpp::VTF();
-	auto processVTF = std::make_unique<ProcessVTF>( this, pVTF );
+	auto processVTF = std::make_unique<CVTFCreationDialog>( this, pVTF );
 
 	processVTF->addImage( paths );
 
@@ -1677,7 +1790,7 @@ void CMainWindow::processDroppedItems( const QStringList &paths )
 		return;
 	}
 	//	bool canRun;
-	//	auto newWindow = new VTFEImport( this, filePath, canRun );
+	//	auto newWindow = new CVTFCreationDialog( this, filePath, canRun );
 	//
 	//	if ( !canRun )
 	//		return;
@@ -1760,6 +1873,7 @@ void CMainWindow::About()
 
 void CMainWindow::importMRAO()
 {
+	//	return;
 	auto mraoDialog = new QDialog( this );
 	auto mraoLayout = new QGridLayout( mraoDialog );
 
@@ -1839,6 +1953,34 @@ void CMainWindow::importMRAO()
 			 } );
 
 	mraoDialog->exec();
+}
+void CMainWindow::closeEvent( QCloseEvent *event )
+{
+	for ( int i = 0; i < pImageTabWidget->count(); i++ )
+	{
+		auto key = pImageTabWidget->tabData( i ).value<intptr_t>();
+		if ( !this->vtfWidgetList.contains( key ) )
+			continue;
+
+		auto pVTF = &this->vtfWidgetList[key];
+		if ( pVTF->hasSaved )
+			continue;
+
+		auto dialogResult = QMessageBox::question( this, "Save VTF?", "Unsaved changes. Do you want to save the VTF?", QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel );
+		if ( dialogResult == QMessageBox::Yes )
+			this->saveVTFToFile( key );
+		if ( dialogResult == QMessageBox::Cancel )
+			return event->ignore();
+	}
+	event->accept();
+}
+void CMainWindow::saveCurrentVTFToFileAs()
+{
+	if ( pImageTabWidget->count() < 1 )
+		return;
+
+	const auto key = pImageTabWidget->tabData( pImageTabWidget->currentIndex() ).value<intptr_t>();
+	CMainWindow::saveVTFToFile( key, true );
 }
 
 ZoomScrollArea::ZoomScrollArea( QWidget *pParent ) :

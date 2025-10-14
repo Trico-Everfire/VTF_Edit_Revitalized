@@ -15,6 +15,7 @@
 #include <QSpinBox>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <vtfpp/SHT.h>
 #include <vtfpp/vtfpp.h>
 
 InfoWidget::InfoWidget( QWidget *pParent ) :
@@ -50,7 +51,7 @@ void InfoWidget::update_info( vtfpp::VTF *file )
 	if ( auto resource = file->getResource( vtfpp::Resource::TYPE_PARTICLE_SHEET_DATA ) )
 	{
 		spriteSheetGroupBox->setDisabled( false );
-		auto spriteSheet = resource->getSpriteSheet();
+		auto spriteSheet = resource->getDataAsParticleSheet();
 		this->spriteSheetSequence->valueChanged( 0 );
 		this->spriteSheetSequence->setValue( 0 );
 		this->spriteSheetFrame->setValue( 0 );
@@ -61,14 +62,14 @@ void InfoWidget::update_info( vtfpp::VTF *file )
 
 	find( "Width" )->setText( QString::number( file->getWidth() ) );
 	find( "Height" )->setText( QString::number( file->getHeight() ) );
-	find( "Depth" )->setText( QString::number( file->getSliceCount() ) );
+	find( "Depth" )->setText( QString::number( file->getDepth() ) );
 	find( "Frames" )->setText( QString::number( file->getFrameCount() ) );
 	find( "Faces" )->setText( QString::number( file->getFaceCount() ) );
 	find( "Mips" )->setText( QString::number( file->getMipCount() ) );
 
-	find( "Version" )->setText( QString::number( file->getMajorVersion() ) + "." + QString::number( file->getMinorVersion() ) );
+	find( "Version" )->setText( QString( "7." ) + QString::number( file->getVersion() ) );
 	auto clevel = find( "Compression Level" );
-	if ( file->getMinorVersion() >= 6 )
+	if ( file->getVersion() >= 6 )
 	{
 		clevel->setDisabled( false );
 		clevel->setText( QString( std::to_string( file->getCompressionLevel() ).c_str() ) );
@@ -79,9 +80,33 @@ void InfoWidget::update_info( vtfpp::VTF *file )
 		clevel->setDisabled( true );
 	}
 
-	auto size = file->bake().size();
-	find( "Size" )->setText(
-		fmt::format( FMT_STRING( "{:.2f} MiB ({:.2f} KiB)" ), size / ( 1024.f * 1024.f ), size / 1024.f ).c_str() );
+	auto compressionMethod = find( "Compression Type" );
+	compressionMethod->setDisabled( false );
+	switch ( file->getCompressionMethod() )
+	{
+		case vtfpp::CompressionMethod::DEFLATE:
+			compressionMethod->setText( "Deflate" );
+			break;
+		case vtfpp::CompressionMethod::ZSTD:
+			compressionMethod->setText( "ZSTD" );
+			break;
+		case vtfpp::CompressionMethod::CONSOLE_LZMA:
+			compressionMethod->setText( "Console LZMA" );
+			break;
+	}
+
+	if ( file->getVersion() < 6 )
+	{
+		compressionMethod->setText( "None" );
+		compressionMethod->setDisabled( true );
+	}
+
+	bool isExact;
+	auto size = file->estimateBakeSize( isExact );
+	if ( isExact )
+		find( "Size" )->setText( fmt::format( FMT_STRING( "{:.2f} MiB ({:.2f} KiB)" ), size / ( 1024.f * 1024.f ), size / 1024.f ).c_str() );
+	else
+		find( "Size" )->setText( fmt::format( FMT_STRING( "Estimated: {:.2f} MiB ({:.2f} KiB)" ), static_cast<float>( size ) / ( 1024.f * 1024.f ), static_cast<float>( size ) / 1024.f ).c_str() );
 
 	float x, y, z;
 	auto flt = file->getReflectivity();
@@ -209,8 +234,8 @@ void InfoWidget::setup_ui()
 
 				 if ( auto resource = vtfFile->getResource( vtfpp::Resource::TYPE_PARTICLE_SHEET_DATA ) )
 				 {
-					 auto spriteSheet = resource->getSpriteSheet();
-					 this->spriteSheetFrame->setMaximum( spriteSheet.getSequences()[i].getFrames().size() - 1 );
+					 auto spriteSheet = resource->getDataAsParticleSheet();
+					 this->spriteSheetFrame->setMaximum( spriteSheet.getSequences()[i].frames.size() - 1 );
 				 }
 			 } );
 	connect( this->enableSpritesheetDisplay, &QCheckBox::clicked, this, &InfoWidget::canTriggerInternal );
@@ -244,9 +269,8 @@ void InfoWidget::canTriggerInternal()
 		emit spriteSheetInfoUpdated( {}, false );
 		return;
 	}
-
-	auto resourceData = this->vtfFile->getResource( vtfpp::Resource::TYPE_PARTICLE_SHEET_DATA )->getSpriteSheet();
-	emit spriteSheetInfoUpdated( resourceData.getSequences()[this->spriteSheetSequence->value()].getFrames()[this->spriteSheetFrame->value()].getSpriteImages()[this->spriteSheetPositions->value()], true );
+	auto resourceData = this->vtfFile->getResource( vtfpp::Resource::TYPE_PARTICLE_SHEET_DATA )->getDataAsParticleSheet();
+	emit spriteSheetInfoUpdated( resourceData.getSequences()[this->spriteSheetSequence->value()].frames[this->spriteSheetFrame->value()].bounds[this->spriteSheetPositions->value()], true );
 }
 
 void InfoWidget::Animate()
@@ -257,7 +281,7 @@ void InfoWidget::Animate()
 	if ( !this->vtfFile->getResource( vtfpp::Resource::TYPE_PARTICLE_SHEET_DATA ) )
 		return this->spriteSheetAnimate->setText( "Animate" );
 
-	auto spriteSheet = this->vtfFile->getResource( vtfpp::Resource::TYPE_PARTICLE_SHEET_DATA )->getSpriteSheet();
+	auto spriteSheet = this->vtfFile->getResource( vtfpp::Resource::TYPE_PARTICLE_SHEET_DATA )->getDataAsParticleSheet();
 
 	if ( spriteSheet.getSequences().size() - 1 < this->spriteSheetSequence->value() )
 		return this->spriteSheetAnimate->setText( "Animate" );
@@ -270,12 +294,12 @@ void InfoWidget::Animate()
 	QTimer timer;
 	connect( &timer, &QTimer::timeout, this, [this, sequence, &i, &timer]
 			 {
-				 if ( i > sequence.getFrames().size() - 1 && sequence.getLoop() )
+				 if ( i > sequence.frames.size() - 1 && sequence.loop )
 				 {
 					 i = 0;
 				 }
 
-				 if ( i > sequence.getFrames().size() - 1 || this->spriteSheetAnimate->text() == "Animate" )
+				 if ( i > sequence.frames.size() - 1 || this->spriteSheetAnimate->text() == "Animate" )
 				 {
 					 timer.stop();
 					 return this->spriteSheetAnimate->setText( "Animate" );
@@ -285,7 +309,7 @@ void InfoWidget::Animate()
 				 this->canTriggerInternal();
 				 i++;
 				 timer.stop();
-				 timer.start( sequence.getFrames()[i].duration * 60 );
+				 timer.start( sequence.frames[i].duration * 60 );
 			 } );
 
 	timer.start( 1 );

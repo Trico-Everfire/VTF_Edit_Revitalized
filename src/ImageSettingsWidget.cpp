@@ -105,37 +105,46 @@ void ImageSettingsWidget::setup_ui( ImageViewWidget *viewer )
 	auto *flagsScroll = new QScrollArea( this );
 	auto *flagsGroup = new QGroupBox( tr( "Flags" ), this );
 	auto *flagsLayout = new QGridLayout( flagsGroup );
-
-	for ( auto &flag : TEXTURE_FLAGS )
+	auto textureFlags = getPrettyFlagNamesForFlags( 4, vtfpp::VTF::PLATFORM_PC );
+	for ( unsigned int i = 0; i < textureFlags.size(); i++ )
 	{
-		auto *check = new QCheckBox( flag.name, this );
+		auto flag = 1 << i;
+		auto name = QString( textureFlags[i].data() );
+		auto *check = new QCheckBox( name, this );
 		check->setCheckable( false );
 		connect(
-			check, &QCheckBox::stateChanged,
-			[this, flag]( int newState )
+			check, &QCheckBox::checkStateChanged,
+			[this, flag]( Qt::CheckState newState )
 			{
 				if ( !file_ )
 					return;
-				if ( newState )
-					file_->addFlags( flag.flag );
+				if ( newState == Qt::Checked )
+					file_->addFlags( flag );
 				else
-					file_->removeFlags( flag.flag );
+					file_->removeFlags( flag );
+				
 				if ( !settingFile_ )
 					emit fileModified();
 			} );
-		flagChecks_.insert( { flag.flag, check } );
+		flagChecks_.insert( { flag, check } );
 		flagsLayout->addWidget( check );
 	}
 
 	flagsScroll->setWidget( flagsGroup );
 	layout->addWidget( flagsScroll, row, 0, 1, 2 );
 
+	// These flags should NEVER be changed by the user.
+	auto check = flagChecks_[1 << 8]; // No Mips
+	check->setDisabled( true );
+	check = flagChecks_[1 << 14]; // Envmap
+	check->setDisabled( true );
+
 	// Set the flags
-	for ( auto &f : TEXTURE_FLAGS )
-	{
-		auto check = flagChecks_.find( f.flag )->second;
-		check->setDisabled( vtfpp::VTF::FLAG_MASK_GENERATED & f.flag );
-	}
+	//	for ( auto &f : TEXTURE_FLAGS )
+	//	{
+	//		auto check = flagChecks_.find( f.flag )->second;
+	//		check->setDisabled( vtfpp::VTF::GENER & f.flag );
+	//	}
 }
 
 void ImageSettingsWidget::set_vtf( const VTFContainer &file )
@@ -180,12 +189,15 @@ void ImageSettingsWidget::set_vtf( const VTFContainer &file )
 	animateButton->setText( "Animate" ); // Tab switching stops animation, this reflects that.
 
 	// Set the flags
-	vtfpp::VTF::Flags flags = file->getFlags();
-	for ( auto &f : TEXTURE_FLAGS )
+	uint32_t flags = file->getFlags();
+	auto textureFlags = getPrettyFlagNamesForFlags( file->getVersion(), file->getPlatform() );
+	for ( unsigned int i = 0; i < textureFlags.size(); i++ )
 	{
-		auto check = flagChecks_.find( f.flag )->second;
+		auto flag = 1 << i;
+		auto check = flagChecks_.find( flag )->second;
 		check->setCheckable( true );
-		check->setChecked( f.flag & flags );
+		qInfo() << ( flags & flag );
+		check->setChecked( flags & flag );
 	}
 
 	settingFile_ = false;

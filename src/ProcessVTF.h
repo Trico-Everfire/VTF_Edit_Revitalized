@@ -1,144 +1,204 @@
-#pragma once
-
 #include <QDialog>
-#include <QListWidget>
-#include <QPushButton>
-#include <QStyledItemDelegate>
+#include <QGroupBox>
+#include <QImage>
+#include <QString>
 #include <vtfpp/VTF.h>
 
-class VTFEImageContainer;
+class QGridLayout;
 class QComboBox;
 class QCheckBox;
-class QShortcut;
-class ProcessVTF;
+class QDoubleSpinBox;
+class QLineEdit;
+class QLabel;
 
-class RemovableItemDelegate : public QStyledItemDelegate
+struct CVTFOptions
 {
-public:
-	RemovableItemDelegate( QObject *parent = nullptr );
+	enum VTFType : uint8_t
+	{
+		ANIMATED = 0,
+		ENVIRONMENT,
+		VOLUME,
+		ANIMATED_ENVIRONMENT
 
-	void paint( QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index ) const override;
+	};
 
-	QWidget *createEditor( QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index ) const override;
+	vtfpp::ImageFormat textureFormat;
+	vtfpp::ImageFormat alphaTextureFormat;
+	VTFType imageType;
+	uint8_t version;
+	bool enable_compression;
+	vtfpp::CompressionMethod compression_method;
+	int8_t compression_level;
+	bool srgb;
+	bool generate_thumbnail;
 
-	void setEditorData( QWidget *editor, const QModelIndex &index ) const override;
-	void setModelData( QWidget *editor, QAbstractItemModel *model, const QModelIndex &index ) const override;
+	bool compute_reflectivity;
+	double lumen_red;
+	double lumen_green;
+	double lumen_blue;
 
-	void updateEditorGeometry( QWidget *editor, const QStyleOptionViewItem &option, const QModelIndex &index ) const override;
+	vtfpp::ImageConversion::ResizeMethod resize_method;
+	vtfpp::ImageConversion::ResizeFilter resize_filter;
+	bool clamp;
+	uint16_t max_width;
+	uint16_t max_height;
 
-private:
+	bool generate_mipmaps;
+	vtfpp::ImageConversion::ResizeFilter mipmap_filter;
+
+	bool lod_control_resource;
+	double lod_control_strength;
+	double lod_control_threshold;
+
+	bool information_resource;
+	QString information_author;
+	QString information_contact;
+	QString information_organization;
+	QString information_version;
+	QString information_modification;
+	QString information_description;
+	QString information_comments;
 };
 
-class SharedTabWidget : public QListView
+class CInverseGroupBox : public QGroupBox
 {
-	//		using QListView::QListView;
-	uint16_t maximum = 65535;
-	bool deleteOnDragSuccess = true;
-	void dropEvent( QDropEvent *event ) override;
-	void dragMoveEvent( QDragMoveEvent *e ) override;
-
-public:
-	SharedTabWidget( QWidget *parent );
-	void setMaximum( uint16_t max ) { this->maximum = max; }
-	[[nodiscard]] uint16_t getMaximum() const { return maximum; }
-	[[nodiscard]] bool shouldDeleteOnDrag() const { return deleteOnDragSuccess; };
-	void setDeleteOnDrag( bool should ) { deleteOnDragSuccess = should; }
+	using QGroupBox::QGroupBox;
+	void paintEvent( QPaintEvent *event ) override;
 };
 
-class DropButton : public QPushButton
+class CGeneralTab : public QWidget
 {
 	Q_OBJECT
-	ProcessVTF *dropListProvider;
+	bool isEditingVTF = false;
+	bool standalone = false;
 
 public:
-	explicit DropButton( ProcessVTF *listProvider, QWidget *parent = nullptr ) :
-		QPushButton( parent ), dropListProvider( listProvider )
-	{
-		this->setAcceptDrops( true );
-		connect( this, &QPushButton::clicked, this, [&]
-				 {
-					 this->setIcon( QIcon() );
-				 } );
-	};
-	explicit DropButton( ProcessVTF *listProvider, const QString &text, QWidget *parent = nullptr ) :
-		QPushButton( text, parent ), dropListProvider( listProvider )
-	{
-		this->setAcceptDrops( true );
-		connect( this, &QPushButton::clicked, this, [&]
-				 {
-					 this->setIcon( QIcon() );
-				 } );
-	};
-	DropButton( ProcessVTF *listProvider, const QIcon &icon, const QString &text, QWidget *parent = nullptr ) :
-		QPushButton( icon, text, parent ), dropListProvider( listProvider )
-	{
-		this->setAcceptDrops( true );
-		connect( this, &QPushButton::clicked, this, [&]
-				 {
-					 this->setIcon( QIcon() );
-				 } );
-	};
+	explicit CGeneralTab( QWidget *parent, bool standalone );
+	// General Options
+	QComboBox *pFormatCombo;
+	QCheckBox *pformatStandaloneCheckbox;
+	QComboBox *pAlphaDetectedFormatCombo;
+	QCheckBox *pAlphaFormatStandaloneCheckbox;
+	QCheckBox *pGenerateThumbnailCheckBox;
+	CInverseGroupBox *computeReflectivityBox;
+	QComboBox *pTypeCombo;
+	//	QCheckBox *pTypeComboStandaloneCheckbox;
+	// Version
+	QComboBox *pVtfVersionBox;
+	QCheckBox *pVTFVersionStandaloneCheckbox;
+	QGroupBox *CompressionBox;
+	QComboBox *CompressionTypeBox;
+	QCheckBox *pCompressionTypeStandaloneCheckbox;
+	QComboBox *CompressionLevelBox;
+	QCheckBox *pCompressionLevelStandaloneCheckbox;
+	// Reflectivity
+	QDoubleSpinBox *pLuminanceWeightRedBox;
+	QCheckBox *pRedLumenStandaloneCheckbox;
+	QDoubleSpinBox *pLuminanceWeightGreenBox;
+	QCheckBox *pGreenLumenStandaloneCheckbox;
+	QDoubleSpinBox *pLuminanceWeightBlueBox;
+	QCheckBox *pBlueLumenStandaloneCheckbox;
+	// Resize
+	QGroupBox *vBoxResize;
+	//	QCheckBox *pResizeCheckbox;
+	QComboBox *pResizeMethodCombo;
+	QComboBox *pResizeFilterCombo;
+	QCheckBox *pClampCheckbox;
+	QComboBox *pClampWidthCombo;
+	QComboBox *pClampHeightCombo;
+	// Mipmaps
+	QGroupBox *generateMipmapBox;
+	QComboBox *pMipmapFilterCombo;
 
-	void dragEnterEvent( QDragEnterEvent *event ) override;
-	void dropEvent( QDropEvent *event ) override;
+	QCheckBox *pSRGBCheckBox;
+	QLineEdit *mipmapCountTextBox;
 
-	int imageIndex = 0;
+	void getVTFOptions( CVTFOptions & ) const;
+	void setVTFData( vtfpp::VTF *vtf );
 
 signals:
-	void onImageInserted();
-	void onImageRemoved();
+	void setMipmapTextBoxText( const QString &txt );
+	void versionSupportsStrata( bool supports );
+	void resizeMethodChanged( vtfpp::ImageConversion::ResizeMethod method );
 };
 
-class ProcessVTF : public QDialog
+class CResourceTab : public QWidget
 {
 	Q_OBJECT
-	enum class TextureType : uint8_t
-	{
-		SINGLE_IMAGE = 0,
-		ANIMATED_TEXTURE,
-		CUBEMAP,
-		ANIMATED_CUBEMAP,
-		VOLUMETRIC_TEXTURES
-	};
 
-	uint16_t imageID = 0;
-	vtfpp::VTF *processVtf = nullptr;
-	QString fileName;
-	QShortcut *pasteShortcut = nullptr;
-	QShortcut *exitShortcut = nullptr;
-
-	SharedTabWidget *imageListList {};
-	SharedTabWidget *baseImageList;
-	SharedTabWidget *frameList;
-	SharedTabWidget *faceList;
-	SharedTabWidget *sliceList;
-	SharedTabWidget *mipList;
-	QPushButton *applButton;
-	QComboBox *pFormatCombo;
-	QComboBox *typeComboBox;
-	QCheckBox *mipmapCheckBox;
-	DropButton *singleFrameContainerButton;
-
-	void setupUI();
-	bool readyUI();
-
-	void applyChanges();
+	bool isEditingVTF = false;
+	bool standalone = false;
 
 public:
-	ProcessVTF( QWidget *parent, vtfpp::VTF *vtf );
-	~ProcessVTF();
+	explicit CResourceTab( QWidget *parent, bool standalone );
 
-	bool addImage( const QImage &image );
-	bool addImage( const QString &imagePath );
-	bool addImage( const QStringList &imagePaths );
-	bool addImage( const std::byte *data, size_t size, uint16_t width, uint16_t height, vtfpp::ImageFormat format );
-	bool addImage( const std::vector<std::byte> &data, uint16_t width, uint16_t height, vtfpp::ImageFormat format );
+	// LODControlResource
+	QGroupBox *lodControlResourceBox;
+	QDoubleSpinBox *pControlResourceCrampUBox;
+	QDoubleSpinBox *pControlResourceCrampVBox;
+	// InformationResource
+	QLabel *pWarningLabel;
+	QGroupBox *informationResourceBox;
+	QCheckBox *pCreateInformationResourceCheckBox;
+	//	QCheckBox *pCreateInformationStandaloneCheckbox;
+	QLineEdit *pInformationResourceAuthor;
+	QCheckBox *pAuthorStandaloneCheckbox;
+	QLineEdit *pInformationResourceContact;
+	QCheckBox *pContactStandaloneCheckbox;
+	QLineEdit *pInformationResourceOrganization;
+	QCheckBox *pOrganizationStandaloneCheckbox;
+	QLineEdit *pInformationResourceVersion;
+	QCheckBox *pVersionStandaloneCheckbox;
+	QLineEdit *pInformationResourceModification;
+	QCheckBox *pModificationStandaloneCheckbox;
+	QLineEdit *pInformationResourceDescription;
+	QCheckBox *pDescriptionStandaloneCheckbox;
+	QLineEdit *pInformationResourceComments;
+
+	QCheckBox *pCommentsStandaloneCheckbox;
+	void getVTFOptions( CVTFOptions & ) const;
+
+	void setVTFData( vtfpp::VTF *vtf );
+public slots:
+	void markResourceAsDangerous( bool mark );
+};
+
+class CVTFCreationDialog : public QDialog
+{
+	struct ImageContent
+	{
+		uint16_t width;
+		uint16_t height;
+		uint16_t frame;
+		uint8_t face;
+		uint16_t slice;
+		vtfpp::ImageFormat format;
+		std::vector<std::byte> data;
+	};
+
+	bool standalone = false;
+
+	vtfpp::VTF *vtf = nullptr;
+	QString fileName = "untitled";
+	bool useImageData = true;
+	bool alphaInImages = false;
+	CGeneralTab *generalTabWidget;
+	CResourceTab *resourceTabWidget;
+	std::vector<ImageContent> imageList;
+	//	std::map<ImageContent> imageList;
+
+	void insertVTFData();
+
+public:
+	CVTFCreationDialog( QWidget *parent, vtfpp::VTF *vtf );
+	bool addImage( std::span<std::byte> data, vtfpp::ImageFormat fmt, uint16_t width, uint16_t height, uint16_t frame = 1, uint16_t face = 1, uint8_t slice = 1, uint8_t mip = 1 );
+	bool addImage( const QImage &iamge );
+	bool addImage( const QString &qString );
+	bool addImage( const QStringList &list );
+	[[nodiscard]] QString getFileName() const;
+
+	void setVTF( vtfpp::VTF *vtf );
+	void applyChanges();
 
 	int exec() override;
-	QString getFileName() const { return fileName; };
-	void dragEnterEvent( QDragEnterEvent *event ) override;
-	void dropEvent( QDropEvent *event ) override;
-	QMap<uint16_t, VTFEImageContainer *> imageList;
-public slots:
-	void onPaste();
 };

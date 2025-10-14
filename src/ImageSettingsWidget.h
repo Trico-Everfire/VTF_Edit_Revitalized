@@ -41,6 +41,6 @@ private:
 	QSpinBox *startFrame_ = nullptr;
 	QPushButton *animateButton;
 	VTFContainer file_ = { nullptr };
-	std::unordered_map<vtfpp::VTF::Flags, QCheckBox *> flagChecks_;
+	std::unordered_map<uint32_t, QCheckBox *> flagChecks_;
 	bool settingFile_ = false;
 };

@@ -1,6 +1,7 @@
 #pragma once
 #include "../libs/QColorWheel/QtColorTriangle.h"
-#include "VTFEImageContainer.h"
+#include "../src/VTFEImageContainer.h"
+#include "vtfpp/vtfpp.h"
 
 #include <QCheckBox>
 #include <QColorDialog>
@@ -10,7 +11,6 @@
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QListWidget>
-#include <vtfpp/vtfpp.h>
 
 enum VTFErrorType
 {
@@ -180,7 +180,7 @@ class VTFEImport : public QDialog
 
 	//	SVTFCreateOptions VTFCreateOptions {};
 	vtfpp::VTF *editableVTF = nullptr;
-	vtfpp::VTF::Flags vtfImageFlags = vtfpp::VTF::FLAG_NONE;
+	vtfpp::VTF::Flags vtfImageFlags = vtfpp::VTF::Flags::FLAG_V0_POINT_SAMPLE;
 	ImageProcessor *pImageProcessor;
 	GeneralTab *pGeneralTab;
 	AdvancedTab *pAdvancedTab;
@@ -204,6 +204,7 @@ class VTFEImport : public QDialog
 public:
 	VTFEImport( QWidget *pParent, const QString &filePath, bool &hasData );
 	VTFEImport( QWidget *pParent, const QStringList &filePaths, bool &hasData );
+	VTFEImport( QWidget *pParent, vtfpp::VTF * );
 	~VTFEImport()
 	{
 		foreach( auto imageFormat, imageList )
@@ -215,7 +216,7 @@ public:
 	static VTFEImport *FromVTF( QWidget *pParent, const vtfpp::VTF *pFile );
 	static VTFEImport *FromFont( QWidget *pParent, std::byte *buff, int width, int height );
 	static VTFEImport *Standalone( QWidget *pParent );
-	void AddImage( const QString &qString );
+	void addImage( const QString &qString );
 	void clearImageList();
 	[[nodiscard]] VTFEImageContainer *grabFirst() const
 	{
@@ -225,5 +226,7 @@ public:
 	}
 	void SetDefaults();
 	bool editVTF( vtfpp::VTF *pFile );
-	void AddImage( const QImage &iamge );
+	void addImage( const QImage &iamge );
+	void addImage( const QStringList &list );
+	QString getFileName();
 };

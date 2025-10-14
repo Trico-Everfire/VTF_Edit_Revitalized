@@ -140,8 +140,8 @@ set(SRC
 #        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 
 add_subdirectory(libs/sourcepp)
-target_include_directories(vpkpp PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/libs/sourcepp/ext/hat-trie/include")
-target_include_directories(vpkpp PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libs/sourcepp/ext/hat-trie/include")
+#target_include_directories(vpkpp PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/libs/sourcepp/ext/hat-trie/include")
+#target_include_directories(vpkpp PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libs/sourcepp/ext/hat-trie/include")
 add_subdirectory(libs/fmt)
 #add_subdirectory(libs/vpklib)
 #add_subdirectory(libs/QColorWheel)

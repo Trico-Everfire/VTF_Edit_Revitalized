@@ -61,6 +61,7 @@ namespace ui
 
 		ImageViewWidget *pImageViewWidget;
 		ImageSettingsWidget *pImageSettingsWidget;
+		AdditionalInformationWidget *pAdditionalInformationWidget;
 		EntryTree *pFileSystemTree;
 		ResourceWidget *pResourceWidget;
 		InfoWidget *pImageInfo;
@@ -95,11 +96,12 @@ namespace ui
 		void resizeEvent( QResizeEvent * ) override;
 		void dragEnterEvent( QDragEnterEvent *event ) override;
 		void dropEvent( QDropEvent *event ) override;
-		void addFile( QString filePath );
+		void closeEvent( QCloseEvent *event ) override;
+		void addFile( const QString &filePath );
 		void consoleParameters( int argc, char **argv );
 		bool separateSpriteSheetVTF();
 		void openTabContextMenu( int tab );
-		void saveVTFToFile( intptr_t key );
+		void saveVTFToFile( intptr_t key, bool saveAs = false );
 		void processDroppedItems( const QStringList &paths );
 
 	signals:
@@ -107,6 +109,7 @@ namespace ui
 	public slots:
 		void saveAllVTFsToFiles();
 		void saveCurrentVTFToFile();
+		void saveCurrentVTFToFileAs();
 		void onPaste();
 		void consoleParameters( const QStringList &params );
 		void About();

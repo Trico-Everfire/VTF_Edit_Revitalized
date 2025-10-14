@@ -90,7 +90,7 @@
 // }
 // using namespace ui;
 
-inline QPalette ApplicationOptions::getTheme( ApplicationOptions::ApplicationPaletteOptions opt )
+QPalette ApplicationOptions::getTheme( ApplicationOptions::ApplicationPaletteOptions opt )
 {
 	if ( opt == ApplicationOptions::VTF_FORGE_DARK )
 	{
@@ -253,20 +253,19 @@ inline QPalette ApplicationOptions::getTheme( ApplicationOptions::ApplicationPal
 	return QApplication::palette();
 }
 
-ApplicationOptions::ApplicationOptions( QWidget *parent ) :
-	QDialog( parent )
+ApplicationOptions::ApplicationOptions()
 {
-	auto baseLayout = QGridLayout( this );
-
-	auto optionsTab = new QTabWidget( this );
+	//	auto baseLayout = QGridLayout( this );
+	//
+	//	auto optionsTab = new QTabWidget( this );
 	// connect( optionsTab, &QTabWidget::currentChanged, optionsTab, &ApplicationOptionsTab::updateGeometry );
 	//	optionsTab->setLayout( new QGridLayout() );
 
-	auto themeWidget = new QWidget( this );
+	//	auto themeWidget = new QWidget( this );
+	//
+	//	optionsTab->addTab( themeWidget, "Themes" );
 
-	optionsTab->addTab( themeWidget, "Themes" );
-
-	auto optionsLayout = new QGridLayout( themeWidget );
+	//	auto optionsLayout = new QGridLayout( themeWidget );
 
 	QFileInfo nonportable( QApplication::applicationDirPath() + "/.nonportable" );
 	if ( !nonportable.exists() || !nonportable.isFile() )
@@ -280,93 +279,93 @@ ApplicationOptions::ApplicationOptions( QWidget *parent ) :
 		options = std::make_unique<QSettings>();
 	}
 
-	auto themeOptions = get( OPT_THEME_SETTINGS, themeSettingsDefault );
+	//	auto themeOptions = get( OPT_THEME_SETTINGS, themeSettingsDefault );
+	//
+	//	auto selectedPalette = getTheme( themeOptions.value( "theme" ).toVariant().value<ApplicationPaletteOptions>() );
+	//	qInfo()
+	//		<< themeOptions.toVariantMap();
+	//
+	//	QApplication::setPalette( selectedPalette );
+	//
+	//	QMetaObject paletteTypeMeta = QPalette::staticMetaObject;
+	//	auto paletteMetaEnum = paletteTypeMeta.enumerator( paletteTypeMeta.indexOfEnumerator( "ColorRole" ) );
+	//
+	//	auto paletteGroupEnum = paletteTypeMeta.enumerator( paletteTypeMeta.indexOfEnumerator( "ColorGroup" ) );
 
-	auto selectedPalette = getTheme( themeOptions.value( "theme" ).toVariant().value<ApplicationPaletteOptions>() );
-	qInfo()
-		<< themeOptions.toVariantMap();
-
-	QApplication::setPalette( selectedPalette );
-
-	QMetaObject paletteTypeMeta = QPalette::staticMetaObject;
-	auto paletteMetaEnum = paletteTypeMeta.enumerator( paletteTypeMeta.indexOfEnumerator( "ColorRole" ) );
-
-	auto paletteGroupEnum = paletteTypeMeta.enumerator( paletteTypeMeta.indexOfEnumerator( "ColorGroup" ) );
-
-	auto themeBox = new QGroupBox( this );
-	auto themeBoxLayout = new QGridLayout( themeBox );
-
-	auto customLayoutWidget = new QWidget( this );
-	QGridLayout *paletteLayout = new QGridLayout( customLayoutWidget );
-
-	for ( int j = 0; j < paletteGroupEnum.keyCount(); j++ )
-	{
-		QGroupBox *paletteGroupBox = new QGroupBox( paletteGroupEnum.key( j ), this );
-		QGridLayout *paletteGroupLayout = new QGridLayout( paletteGroupBox );
-
-		for ( int k = 0, i = 0; k < paletteMetaEnum.keyCount(); k++, i++ )
-		{
-			auto colorLayout = new QGridLayout();
-
-			QLabel *keyLabel = new QLabel( paletteMetaEnum.key( k ) );
-			colorLayout->addWidget( keyLabel, 0, 1 );
-			QPushButton *color = new QPushButton();
-			auto role = static_cast<QPalette::ColorRole>( paletteMetaEnum.value( k ) );
-			QPixmap square { 16, 16 };
-			square.fill( selectedPalette.color( role ) );
-			color->setIcon( { square } );
-			color->setFixedSize( 24, 24 );
-			colorLayout->addWidget( color, 0, 0 );
-			if ( i == 5 )
-				i = 0;
-			paletteGroupLayout->addLayout( colorLayout, i + 2, std::floor( k / 5 ) );
-		}
-		paletteLayout->addWidget( paletteGroupBox, j, 0 );
-	}
-	themeBoxLayout->addWidget( customLayoutWidget );
-
-	QApplication::setStyle( themeOptions.value( "style" ).toString() );
-
-	optionsLayout->addWidget( themeBox, 0, 0 );
-
-	baseLayout.addWidget( optionsTab, 0, 0 );
+	//	auto themeBox = new QGroupBox( this );
+	//	auto themeBoxLayout = new QGridLayout( themeBox );
+	//
+	//	auto customLayoutWidget = new QWidget( this );
+	//	QGridLayout *paletteLayout = new QGridLayout( customLayoutWidget );
+	//
+	//	for ( int j = 0; j < paletteGroupEnum.keyCount(); j++ )
+	//	{
+	//		QGroupBox *paletteGroupBox = new QGroupBox( paletteGroupEnum.key( j ), this );
+	//		QGridLayout *paletteGroupLayout = new QGridLayout( paletteGroupBox );
+	//
+	//		for ( int k = 0, i = 0; k < paletteMetaEnum.keyCount(); k++, i++ )
+	//		{
+	//			auto colorLayout = new QGridLayout();
+	//
+	//			QLabel *keyLabel = new QLabel( paletteMetaEnum.key( k ) );
+	//			colorLayout->addWidget( keyLabel, 0, 1 );
+	//			QPushButton *color = new QPushButton();
+	//			auto role = static_cast<QPalette::ColorRole>( paletteMetaEnum.value( k ) );
+	//			QPixmap square { 16, 16 };
+	//			square.fill( selectedPalette.color( role ) );
+	//			color->setIcon( { square } );
+	//			color->setFixedSize( 24, 24 );
+	//			colorLayout->addWidget( color, 0, 0 );
+	//			if ( i == 5 )
+	//				i = 0;
+	//			paletteGroupLayout->addLayout( colorLayout, i + 2, std::floor( k / 5 ) );
+	//		}
+	//		paletteLayout->addWidget( paletteGroupBox, j, 0 );
+	//	}
+	//	themeBoxLayout->addWidget( customLayoutWidget );
+	//
+	//	QApplication::setStyle( themeOptions.value( "style" ).toString() );
+	//
+	//	optionsLayout->addWidget( themeBox, 0, 0 );
+	//
+	//	baseLayout.addWidget( optionsTab, 0, 0 );
 }
-QSize ApplicationOptions::ApplicationOptionsTab::minimumSizeHint() const
-{
-	return this->sizeHint();
-}
-QSize ApplicationOptions::ApplicationOptionsTab::sizeHint() const
-{
-	//	return QTabWidget::sizeHint();
-	auto lc = QSize( 0, 0 );
-	auto rc = QSize( 0, 0 );
-	auto opt = new QStyleOptionTabWidgetFrame();
-	this->initStyleOption( opt );
-
-	if ( this->cornerWidget( Qt::TopLeftCorner ) )
-		lc = this->cornerWidget( Qt::TopLeftCorner )->sizeHint();
-	if ( this->cornerWidget( Qt::TopRightCorner ) )
-		lc = this->cornerWidget( Qt::TopRightCorner )->sizeHint();
-
-	if ( !this->widget( 0 ) )
-		return QTabWidget::sizeHint();
-
-	auto layout = this->currentWidget()->layout();
-	auto layoutHint = layout->widget()->sizeHint();
-	auto tabHint = this->tabBar()->sizeHint();
-
-	QSize size;
-
-	if ( this->tabPosition() & North | South )
-	{
-		size = QSize( std::max( layoutHint.width(), tabHint.width() + rc.width() + lc.width() ), layoutHint.height() + std::max( rc.height(), std::max( lc.height(), tabHint.height() ) ) );
-	}
-	else
-	{
-		size = QSize(
-			layoutHint.width() + std::max( rc.width(), std::max( lc.width(), tabHint.width() ) ),
-			std::max( layoutHint.height(), tabHint.height() + rc.height() + lc.height() ) );
-	}
-
-	return size;
-}
+// QSize ApplicationOptions::ApplicationOptionsTab::minimumSizeHint() const
+//{
+//	return this->sizeHint();
+// }
+// QSize ApplicationOptions::ApplicationOptionsTab::sizeHint() const
+//{
+//	//	return QTabWidget::sizeHint();
+//	auto lc = QSize( 0, 0 );
+//	auto rc = QSize( 0, 0 );
+//	auto opt = new QStyleOptionTabWidgetFrame();
+//	this->initStyleOption( opt );
+//
+//	if ( this->cornerWidget( Qt::TopLeftCorner ) )
+//		lc = this->cornerWidget( Qt::TopLeftCorner )->sizeHint();
+//	if ( this->cornerWidget( Qt::TopRightCorner ) )
+//		lc = this->cornerWidget( Qt::TopRightCorner )->sizeHint();
+//
+//	if ( !this->widget( 0 ) )
+//		return QTabWidget::sizeHint();
+//
+//	auto layout = this->currentWidget()->layout();
+//	auto layoutHint = layout->widget()->sizeHint();
+//	auto tabHint = this->tabBar()->sizeHint();
+//
+//	QSize size;
+//
+//	if ( this->tabPosition() & North | South )
+//	{
+//		size = QSize( std::max( layoutHint.width(), tabHint.width() + rc.width() + lc.width() ), layoutHint.height() + std::max( rc.height(), std::max( lc.height(), tabHint.height() ) ) );
+//	}
+//	else
+//	{
+//		size = QSize(
+//			layoutHint.width() + std::max( rc.width(), std::max( lc.width(), tabHint.width() ) ),
+//			std::max( layoutHint.height(), tabHint.height() + rc.height() + lc.height() ) );
+//	}
+//
+//	return size;
+// }
