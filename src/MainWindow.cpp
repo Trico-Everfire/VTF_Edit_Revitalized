@@ -3,7 +3,7 @@
 #define STB_IMAGE_STATIC
 #define STB_IMAGE_IMPLEMENTATION
 #include "../libs/stb/stb_image.h"
-#include "ApplicationOptionsWidget.h"
+#include "ApplicationOptionsDialog.h"
 #include "EntryTree.h"
 #include "ProcessVTF.h"
 
@@ -41,8 +41,8 @@ CMainWindow::CMainWindow() :
 
 	auto themeOptions = this->options->get( OPT_THEME_SETTINGS, ApplicationOptions::themeSettingsDefault ).toObject();
 	auto selectedPalette = ApplicationOptions::getTheme( themeOptions.value( "theme" ).toVariant().value<ApplicationOptions::ApplicationPaletteOptions>() );
-
 	QApplication::setPalette( selectedPalette );
+	QApplication::setStyle( themeOptions.value( "style" ).toString() );
 
 	setAcceptDrops( true );
 
@@ -76,6 +76,7 @@ CMainWindow::CMainWindow() :
 	m_pHorizontalScrollBar->setMinimumWidth( 512 );
 	m_pHorizontalScrollBar->setMinimumHeight( 16 );
 	m_pHorizontalScrollBar->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
+	m_pHorizontalScrollBar->setDisabled( true );
 
 	pImageViewWidget->setXOffset( 4096 / 2 );
 	pImageViewWidget->setYOffset( 4096 / 2 );
@@ -90,7 +91,7 @@ CMainWindow::CMainWindow() :
 	m_pVerticalScrollBar->setMinimumHeight( 512 );
 	m_pVerticalScrollBar->setMinimumWidth( 16 );
 	m_pVerticalScrollBar->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
-
+	m_pVerticalScrollBar->setDisabled( true );
 	scrollLayout->addWidget( m_pVerticalScrollBar, 0, 1, Qt::AlignRight );
 
 	pMainLayout->addWidget( m_pScrollWidget, 1, 1 );
@@ -298,7 +299,14 @@ CMainWindow::CMainWindow() :
 	new QShortcut( QKeySequence( QKeyCombination( Qt::CTRL | Qt::SHIFT | Qt::Key_S ) ), this, SLOT( saveCurrentVTFToFileAs() ) );
 	new QShortcut( QKeyCombination( Qt::CTRL | Qt::ALT | Qt::SHIFT, Qt::Key_S ), this, SLOT( saveAllVTFsToFiles() ) );
 	new QShortcut( QKeySequence( Qt::CTRL | Qt::Key_V ), this, SLOT( onPaste() ) );
-	//	new QShortcut( QKeyCombination( Qt::CTRL | Qt::ALT, Qt::Key_O ), options, SLOT( open() ) );
+	new QShortcut( QKeyCombination( Qt::CTRL | Qt::ALT, Qt::Key_O ), this, SLOT( openOptionsWindow() ) );
+}
+
+void CMainWindow::openOptionsWindow()
+{
+	auto optionsMenu = new ApplicationOptionsDialog( this );
+	//	optionsMenu->setMinimumSize( 500, 400 );
+	optionsMenu->exec();
 }
 
 bool CMainWindow::separateSpriteSheetVTF()
@@ -423,13 +431,14 @@ void CMainWindow::tabChanged( int index )
 	pImageSettingsWidget->set_vtf( pVTF );
 	pImageInfo->update_info( pVTF.vtf );
 
-	//		if ( pVTF )
-	//		{
-	//			scrollWidget->verticalScrollBar()->setSliderPosition( pVTF->GetHeight() / 2 );
-	//			scrollWidget->horizontalScrollBar()->setSliderPosition( pVTF->GetWidth() / 2 );
-	//		}
-
+	//	if ( !pVTF )
+	//	{
+	//		//setSliderPosition( pVTF->GetHeight() / 2 );
+	//		scrollWidget->horizontalScrollBar()->//setSliderPosition( pVTF->GetWidth() / 2 );
+	//	}
+	m_pHorizontalScrollBar->setEnabled( pVTF );
 	m_pHorizontalScrollBar->setValue( 4096 / 2 );
+	m_pVerticalScrollBar->setEnabled( pVTF );
 	m_pVerticalScrollBar->setValue( 4096 / 2 );
 }
 
@@ -477,7 +486,7 @@ void CMainWindow::setupMenuBar()
 	pViewMenu->addAction( alphaBox );
 
 	auto pHelpMenu = m_pMainMenuBar->addMenu( "Help" );
-	//	pHelpMenu->addAction( "Options", options, SLOT( open() ) );
+	pHelpMenu->addAction( "Options", this, SLOT( openOptionsWindow() ) );
 
 	auto pAbout = m_pMainMenuBar->addMenu( "About" );
 	pAbout->addAction( "About QT", qApp, &QApplication::aboutQt );
@@ -496,7 +505,7 @@ void CMainWindow::compressVTFFile()
 {
 	auto configurationMenu = new CVTFCreationDialog( this, nullptr );
 
-	auto recentPaths = options->get( STR_OPEN_RECENT ).toVariant().toStringList();
+	auto recentPaths = options->get( STR_OPEN_RECENT, QJsonArray { QDir::currentPath() } ).toVariant().toStringList();
 
 	QStringList filePaths = QFileDialog::getOpenFileNames(
 		this, "Open VTF", recentPaths.last(), "*.vtf", nullptr, QFileDialog::Option::DontUseNativeDialog );
@@ -525,7 +534,7 @@ void CMainWindow::compressVTFFile()
 
 	return;
 #ifdef FALSE
-	auto recentPaths = options->get( STR_OPEN_RECENT ).toVariant().toStringList();
+	auto recentPaths = options->get( STR_OPEN_RECENT, QJsonArray { QDir::currentPath() } ).toVariant().toStringList();
 
 	QStringList filePaths = QFileDialog::getOpenFileNames(
 		this, "Open VTF", recentPaths.last(), "*.vtf", nullptr, QFileDialog::Option::DontUseNativeDialog );
@@ -716,7 +725,7 @@ void CMainWindow::compressVTFFolder()
 {
 #ifdef COMPRESSVTF
 
-	auto recentPaths = options->get( STR_OPEN_RECENT ).toVariant().toStringList();
+	auto recentPaths = options->get( STR_OPEN_RECENT, QJsonArray { QDir::currentPath() } ).toVariant().toStringList();
 	QString dirPath = QFileDialog::getExistingDirectory(
 		this, "Open VTF", recentPaths.last(), QFileDialog::Option::DontUseNativeDialog );
 
@@ -1250,7 +1259,7 @@ void CMainWindow::batchConvert()
 
 void CMainWindow::importFromFile()
 {
-	auto recentPaths = options->get( STR_OPEN_RECENT ).toVariant().toStringList();
+	auto recentPaths = options->get( STR_OPEN_RECENT, QJsonArray { QDir::currentPath() } ).toVariant().toStringList();
 
 	QStringList filePaths = QFileDialog::getOpenFileNames(
 		this, "Open", recentPaths.last(), supportedWildcardImageList.join( " " ) + " *.vtf", nullptr,
@@ -1318,7 +1327,7 @@ void CMainWindow::NewVTFFromVTF( const QString &filePath )
 
 void CMainWindow::openVTF()
 {
-	auto recentPaths = options->get( STR_OPEN_RECENT ).toVariant().toStringList();
+	auto recentPaths = options->get( STR_OPEN_RECENT, QJsonArray { QDir::currentPath() } ).toVariant().toStringList();
 
 	QString filePath = QFileDialog::getOpenFileName(
 		this, "Open VTF", recentPaths.last(), "*.vtf", nullptr, QFileDialog::Option::DontUseNativeDialog );
@@ -1414,7 +1423,7 @@ void CMainWindow::generateVTFFromImages( QStringList filePaths )
 
 void CMainWindow::fontToVTF()
 {
-	auto recentPaths = options->get( STR_OPEN_RECENT ).toVariant().toStringList();
+	auto recentPaths = options->get( STR_OPEN_RECENT, QJsonArray { QDir::currentPath() } ).toVariant().toStringList();
 
 	QString filePath = QFileDialog::getOpenFileName(
 		this, "Open TTF/OTF", recentPaths.last(), "*.ttf *.otf", nullptr, QFileDialog::Option::DontUseNativeDialog );
@@ -1519,7 +1528,7 @@ void CMainWindow::exportVTFToFile()
 		type = 2;
 	}
 
-	auto recentPaths = options->get( STR_OPEN_RECENT ).toVariant().toStringList();
+	auto recentPaths = options->get( STR_OPEN_RECENT, QJsonArray { QDir::currentPath() } ).toVariant().toStringList();
 
 	QString filePath = QFileDialog::getSaveFileName(
 		this, fImageAmount > 1 ? "Export to *" : "Export to _x*",
@@ -1586,7 +1595,7 @@ void CMainWindow::saveVTFToFile( intptr_t key, bool saveAs )
 
 	QString filePath {};
 
-	auto recentPaths = options->get( STR_OPEN_RECENT ).toVariant().toStringList();
+	auto recentPaths = options->get( STR_OPEN_RECENT, QJsonArray { QDir::currentPath() } ).toVariant().toStringList();
 	if ( pVTF->path.isEmpty() || saveAs )
 	{
 		filePath = QFileDialog::getSaveFileName(
@@ -1702,7 +1711,7 @@ void CMainWindow::addFile( const QString &filePath )
 {
 	QString suffix = QFileInfo( filePath ).suffix();
 
-	auto recentPaths = options->get( STR_OPEN_RECENT ).toVariant().toStringList();
+	auto recentPaths = options->get( STR_OPEN_RECENT, QJsonArray { QDir::currentPath() } ).toVariant().toStringList();
 
 	if ( recentPaths.contains( filePath ) )
 		recentPaths.removeAt( recentPaths.indexOf( filePath ) );
@@ -1764,6 +1773,9 @@ void CMainWindow::openTabContextMenu( int tab )
 }
 void CMainWindow::processDroppedItems( const QStringList &paths )
 {
+	if ( paths.isEmpty() )
+		return;
+
 	bool sameType = true;
 	QString firstPrefix = paths[0].split( "." ).last();
 	for ( auto &item : paths )

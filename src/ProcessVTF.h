@@ -119,7 +119,8 @@ public:
 signals:
 	void setMipmapTextBoxText( const QString &txt );
 	void versionSupportsStrata( bool supports );
-	void resizeMethodChanged( vtfpp::ImageConversion::ResizeMethod method );
+	//	void resizeMethodChanged( vtfpp::ImageConversion::ResizeMethod method );
+	//	void resizeMethodIsNone( bool isNone );
 };
 
 class CResourceTab : public QWidget

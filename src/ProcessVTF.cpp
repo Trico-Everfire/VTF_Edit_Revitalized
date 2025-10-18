@@ -1,6 +1,6 @@
 #include "ProcessVTF.h"
 
-#include "ApplicationOptionsWidget.h"
+#include "ApplicationOptionsDialog.h"
 #include "flagsandformats.hpp"
 
 #include <QBuffer>
@@ -42,6 +42,25 @@ CVTFCreationDialog::CVTFCreationDialog( QWidget *parent, vtfpp::VTF *vtf ) :
 
 	connect( acceptButton, &QPushButton::pressed, this, &CVTFCreationDialog::accept );
 	connect( cancelButton, &QPushButton::pressed, this, &CVTFCreationDialog::close );
+
+	auto allowNonPo2 = ApplicationOptions::getInstance()->get( "adv_allow_non_po2", false ).toBool();
+
+	if ( !allowNonPo2 )
+	{
+		connect( this->generalTabWidget->pResizeMethodCombo, &QComboBox::currentIndexChanged, this, [&, acceptButton]( int ind )
+				 {
+					 bool isPo2 = true;
+
+					 for ( const auto &img : imageList )
+						 if ( !sourcepp::math::isPowerOf2( img.width ) || !sourcepp::math::isPowerOf2( img.height ) )
+						 {
+							 isPo2 = false;
+							 break;
+						 }
+
+					 acceptButton->setDisabled( !isPo2 && this->generalTabWidget->pResizeMethodCombo->itemData( ind ).value<vtfpp::ImageConversion::ResizeMethod>() == vtfpp::ImageConversion::ResizeMethod::NONE );
+				 } );
+	}
 	creationLayout->addWidget( buttonlayoutBox );
 
 	if ( vtf && vtf->hasImageData() )
@@ -103,6 +122,7 @@ bool CVTFCreationDialog::addImage( const std::span<std::byte> data, vtfpp::Image
 				{
 					this->imageList.emplace_back( width, height, i, j, k, fmt, std::vector<std::byte>( data.begin(), data.end() ) );
 				}
+	this->generalTabWidget->pResizeMethodCombo->currentIndexChanged( this->generalTabWidget->pResizeMethodCombo->currentIndex() );
 	return true;
 }
 
@@ -133,6 +153,18 @@ void CVTFCreationDialog::applyChanges()
 	CVTFOptions options;
 	this->generalTabWidget->getVTFOptions( options );
 	this->resourceTabWidget->getVTFOptions( options );
+
+	vtf->setImageResizeMethods( options.resize_method, options.resize_method );
+
+	vtf->setSRGB( options.srgb );
+
+	vtf->setVersion( options.version );
+
+	if ( options.enable_compression )
+	{
+		vtf->setCompressionMethod( options.compression_method );
+		vtf->setCompressionLevel( options.compression_level );
+	}
 
 	if ( !vtf->hasImageData() )
 	{
@@ -171,18 +203,6 @@ void CVTFCreationDialog::applyChanges()
 					vtf->setImage( image.data, image.format, image.width, image.height, options.resize_filter, 0, i, j, k );
 				}
 	}
-
-	vtf->setVersion( options.version );
-
-	if ( options.enable_compression )
-	{
-		vtf->setCompressionMethod( options.compression_method );
-		vtf->setCompressionLevel( options.compression_level );
-	}
-
-	vtf->setImageResizeMethods( options.resize_method, options.resize_method );
-
-	vtf->setSRGB( options.srgb );
 
 	vtf->setFormat( alphaInImages ? options.alphaTextureFormat : options.textureFormat );
 
@@ -291,7 +311,7 @@ CGeneralTab::CGeneralTab( QWidget *parent, bool standalone ) :
 	generalOptionsLayout->addWidget( vtfVersionLabel, 3, 0, Qt::AlignLeft );
 	pVtfVersionBox = new QComboBox( this );
 
-	int vtfMax = ApplicationOptions::getInstance()->get( ADV_SRATA_SOURCE, false ).toBool() ? 6 : 5;
+	int vtfMax = ApplicationOptions::getInstance()->get( ADV_STRATA_SOURCE, false ).toBool() ? 6 : 5;
 
 	for ( int i = 0; i <= vtfMax; i++ )
 		pVtfVersionBox->addItem( "7." + QString::number( i ), i );
@@ -436,10 +456,6 @@ CGeneralTab::CGeneralTab( QWidget *parent, bool standalone ) :
 	pResizeMethodCombo->addItem( tr( "Smallest Power Of 2" ), (int)vtfpp::ImageConversion::ResizeMethod::POWER_OF_TWO_SMALLER );
 	pResizeMethodCombo->addItem( tr( "None" ), (int)vtfpp::ImageConversion::ResizeMethod::NONE );
 	pResizeMethodCombo->setCurrentIndex( settings.value( "resize_method" ).toInt() );
-	connect( pResizeMethodCombo, &QComboBox::currentIndexChanged, this, [&]( int ind )
-			 {
-				 emit resizeMethodChanged( pResizeMethodCombo->itemData( ind ).value<vtfpp::ImageConversion::ResizeMethod>() );
-			 } );
 
 	resizeBoxLayout->addWidget( pResizeMethodCombo, 0, 1, Qt::AlignRight );
 

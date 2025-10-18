@@ -114,6 +114,7 @@ namespace ui
 		void consoleParameters( const QStringList &params );
 		void About();
 		void importMRAO();
+		void openOptionsWindow();
 	};
 
 	class ZoomScrollArea : public QAbstractScrollArea

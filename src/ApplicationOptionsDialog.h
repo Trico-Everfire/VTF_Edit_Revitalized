@@ -14,7 +14,7 @@ constexpr std::string_view OPT_IMPORT_COUNT = "import_amount";
 constexpr std::string_view OPT_THEME_SETTINGS = "theme_settings";
 constexpr std::string_view OPT_CUSTOM_THEME = "theme_custom";
 // Advanced
-constexpr std::string_view ADV_SRATA_SOURCE = "adv_support_strata";
+constexpr std::string_view ADV_STRATA_SOURCE = "adv_support_strata";
 constexpr std::string_view ADV_ALLOW_NON_PO2 = "adv_allow_non_po2";
 // Settings
 constexpr std::string_view IMPORT_MENU_SETTINGS = "import_menu_settings";
@@ -25,7 +25,7 @@ const QJsonObject IMPORT_DEFAULTS = {
 	{ "format", (int)vtfpp::ImageFormat::RGB888 },
 	{ "format_alpha", (int)vtfpp::ImageFormat::RGBA8888 },
 	{ "texture_type", 0 },
-	{ "vtf_version", 5 },
+	{ "vtf_version", 4 },
 	{ "enable_compression", false },
 	{ "compression_method", 0 },
 	{ "compression_level", 10 },
@@ -47,11 +47,10 @@ const QJsonObject IMPORT_DEFAULTS = {
 	{ "lod_threshold", 0.5f },
 	{ "information_enabled", false },
 	{ "information_author", "" },
-	{ "information_contact", "" }
+	{ "information_contact", "" },
+	{ "information_organization", "" }
 
-}
-
-;
+};
 
 class ApplicationOptions : public QObject
 {
@@ -63,7 +62,7 @@ class ApplicationOptions : public QObject
 public:
 	enum ApplicationPaletteOptions
 	{
-		VTF_FORGE_DARK,
+		VTF_FORGE_DARK = 0,
 		VTF_FORGE_LIGHT,
 		VTF_FORGE_VGUI,
 		VTF_FORGE_GALAXY,
@@ -115,6 +114,28 @@ public:
 	}
 
 	static QPalette getTheme( ApplicationPaletteOptions opt );
+};
+
+class QCheckBox;
+class QComboBox;
+
+class ApplicationOptionsDialog : public QDialog
+{
+	// General
+	QCheckBox *startMaxCheckbox;
+	QComboBox *styleComboBox;
+	QComboBox *themeComboBox;
+	// Advanced
+	QCheckBox *strataSourceCheckbox;
+
+	QCheckBox *nonPO2Checkbox;
+	void applyChanges();
+
+	void areYouSure();
+
+public:
+	explicit ApplicationOptionsDialog( QWidget *parent );
+	int exec() override;
 };
 //} // namespace ui
 

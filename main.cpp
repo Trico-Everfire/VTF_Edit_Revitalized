@@ -1,4 +1,4 @@
-#include "src/ApplicationOptionsWidget.h"
+#include "src/ApplicationOptionsDialog.h"
 #include "src/CLIProcessor.h"
 #include "src/MainWindow.h"
 

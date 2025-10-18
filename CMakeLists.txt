@@ -120,7 +120,7 @@ set(SRC
         src/MainWindow.cpp src/MainWindow.h
         src/supported_formats/TiffSupport.cpp
         src/supported_formats/TiffSupport.h
-        src/ApplicationOptionsWidget.h
+        src/ApplicationOptionsDialog.h
         src/ApplicationOptionsWidget.cpp
         src/EntryTree.h
         src/EntryTree.cpp

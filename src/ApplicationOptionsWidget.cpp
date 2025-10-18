@@ -1,11 +1,16 @@
-#include "ApplicationOptionsWidget.h"
+#include "ApplicationOptionsDialog.h"
 
 #include <QApplication>
+#include <QButtonGroup>
+#include <QCheckBox>
 #include <QColorDialog>
+#include <QComboBox>
+#include <QDialogButtonBox>
 #include <QFileInfo>
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QLabel>
+#include <QMessageBox>
 #include <QMetaEnum>
 #include <QMetaType>
 #include <QPainter>
@@ -369,3 +374,118 @@ ApplicationOptions::ApplicationOptions()
 //
 //	return size;
 // }
+
+QCheckBox *settingCheckbox( const QString &text, QWidget *parent, const QString &tooltip )
+{
+	auto settingCheckbox = new QCheckBox( text, parent );
+	settingCheckbox->setWhatsThis( tooltip );
+	settingCheckbox->setToolTip( tooltip );
+	return settingCheckbox;
+}
+
+ApplicationOptionsDialog::ApplicationOptionsDialog( QWidget *parent ) :
+	QDialog( parent )
+{
+	auto options = ApplicationOptions::getInstance();
+
+	auto layout = new QVBoxLayout( this );
+	auto mainTabs = new QTabWidget( this );
+	layout->addWidget( mainTabs );
+	auto generalOptionsWidget = new QWidget( mainTabs );
+	auto generalOptionsLayout = new QGridLayout( generalOptionsWidget );
+	generalOptionsLayout->setAlignment( Qt::AlignTop );
+	startMaxCheckbox = settingCheckbox( tr( "Start Maximized" ), generalOptionsWidget, tr( "Start the application maximized." ) );
+	startMaxCheckbox->setChecked( options->get( OPT_START_MAXIMIZED, false ).toBool() );
+	generalOptionsLayout->addWidget( startMaxCheckbox, 0, 0, 1, 2 );
+
+	auto styleLabel = new QLabel( tr( "Style:" ), generalOptionsWidget );
+	generalOptionsLayout->addWidget( styleLabel, 1, 0 );
+
+	auto theme = options->get( OPT_THEME_SETTINGS, ApplicationOptions::themeSettingsDefault ).toObject();
+
+	styleComboBox = new QComboBox( generalOptionsWidget );
+	auto styleBoxTooltip = tr( "Set the style of VTF Forge. (Restart may be required)" );
+	styleComboBox->setToolTip( styleBoxTooltip );
+	styleComboBox->setWhatsThis( styleBoxTooltip );
+	for ( const auto &key : QStyleFactory::keys() )
+	{
+		styleComboBox->addItem( key, key );
+	}
+	styleComboBox->setCurrentIndex( styleComboBox->findData( theme.value( "style" ).toString() ) );
+	generalOptionsLayout->addWidget( styleComboBox, 1, 1 );
+
+	auto themeLabel = new QLabel( tr( "Theme:" ), generalOptionsWidget );
+	generalOptionsLayout->addWidget( themeLabel, 2, 0 );
+
+	themeComboBox = new QComboBox( generalOptionsWidget );
+	auto themeBoxTooltip = tr( "Set the theme of VTF Forge. (Restart may be required)" );
+	themeComboBox->setToolTip( themeBoxTooltip );
+	themeComboBox->setWhatsThis( themeBoxTooltip );
+	themeComboBox->addItem( "VTF Forge Dark", ApplicationOptions::VTF_FORGE_DARK );
+	themeComboBox->addItem( "VTF Forge Galaxy", ApplicationOptions::VTF_FORGE_GALAXY );
+	themeComboBox->addItem( "VTF Forge Light", ApplicationOptions::VTF_FORGE_LIGHT );
+	themeComboBox->addItem( "P2CE Dark", ApplicationOptions::VTF_FORGE_P2CE );
+	themeComboBox->addItem( "Momentum Mod Dark", ApplicationOptions::VTF_FORGE_MOMENTUM );
+	themeComboBox->addItem( "VGUI", ApplicationOptions::VTF_FORGE_VGUI );
+	//	themeComboBox->addItem( "VTF Forge Custom", ApplicationOptions::VTF_FORGE_CUSTOM );
+
+	themeComboBox->setCurrentIndex( themeComboBox->findData( theme.value( "theme" ).toInt() ) );
+	generalOptionsLayout->addWidget( themeComboBox, 2, 1 );
+
+	mainTabs->addTab( generalOptionsWidget, tr( "General" ) );
+
+	auto advancedOptionsWidget = new QWidget( this );
+	auto advancedOptionsLayout = new QGridLayout( advancedOptionsWidget );
+
+	strataSourceCheckbox = settingCheckbox( tr( "Strata Source VTF Creation." ), advancedOptionsWidget, tr( "Allows for the creation of (compressed) 7.6 VTFs." ) );
+	strataSourceCheckbox->setChecked( options->get( ADV_STRATA_SOURCE, false ).toBool() );
+	advancedOptionsLayout->addWidget( strataSourceCheckbox, 0, 0, 1, 2 );
+
+	nonPO2Checkbox = settingCheckbox( tr( "Allow for Non Power of 2 VTFs." ), advancedOptionsWidget, tr( "Allows for the creation of Non Power of 2 VTFs.\nThis may or may not function as intended and has yet to be extensively tested across multiple source engine branches.\nBut so far is known to work for Strata Source." ) );
+	nonPO2Checkbox->setChecked( options->get( ADV_ALLOW_NON_PO2, false ).toBool() );
+	advancedOptionsLayout->addWidget( nonPO2Checkbox, 1, 0, 1, 2 );
+
+	mainTabs->addTab( advancedOptionsWidget, tr( "Advanced" ) );
+
+	auto buttonGroup = new QDialogButtonBox( this );
+	auto applyButton = buttonGroup->addButton( "Apply", QDialogButtonBox::AcceptRole );
+	auto cancelButton = buttonGroup->addButton( "Cancel", QDialogButtonBox::RejectRole );
+
+	connect( applyButton, &QPushButton::clicked, this, &ApplicationOptionsDialog::areYouSure );
+	connect( cancelButton, &QPushButton::clicked, this, &ApplicationOptionsDialog::reject );
+	layout->addWidget( buttonGroup );
+}
+int ApplicationOptionsDialog::exec()
+{
+	int res = QDialog::exec();
+
+	if ( res == Accepted )
+		this->applyChanges();
+
+	return res;
+}
+void ApplicationOptionsDialog::applyChanges()
+{
+	auto options = ApplicationOptions::getInstance();
+	auto themeSettings = options->get( OPT_THEME_SETTINGS, ApplicationOptions::themeSettingsDefault ).toObject();
+	themeSettings.insert( "style", styleComboBox->currentData().toString() );
+	themeSettings.insert( "theme", this->themeComboBox->currentData().toInt() );
+	options->set( OPT_THEME_SETTINGS, themeSettings );
+	auto selectedPalette = ApplicationOptions::getTheme( this->themeComboBox->currentData().value<ApplicationOptions::ApplicationPaletteOptions>() );
+
+	QApplication::setPalette( selectedPalette );
+	QApplication::setStyle( styleComboBox->currentData().toString() );
+
+	options->set( OPT_START_MAXIMIZED, startMaxCheckbox->isChecked() );
+	options->set( ADV_STRATA_SOURCE, strataSourceCheckbox->isChecked() );
+	options->set( ADV_ALLOW_NON_PO2, nonPO2Checkbox->isChecked() );
+}
+void ApplicationOptionsDialog::areYouSure()
+{
+	auto result = QMessageBox::warning( this, "Are you sure?", "Are you sure you wanna apply the changes?", QMessageBox::Yes, QMessageBox::No );
+
+	if ( result == QMessageBox::No )
+		return;
+
+	this->accept();
+}

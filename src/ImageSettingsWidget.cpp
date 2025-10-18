@@ -122,7 +122,7 @@ void ImageSettingsWidget::setup_ui( ImageViewWidget *viewer )
 					file_->addFlags( flag );
 				else
 					file_->removeFlags( flag );
-				
+
 				if ( !settingFile_ )
 					emit fileModified();
 			} );
@@ -171,6 +171,19 @@ void ImageSettingsWidget::set_vtf( const VTFContainer &file )
 		settingFile_ = false;
 		file_ = file;
 		animateButton->setText( "Animate" );
+
+		auto textureFlags = getPrettyFlagNamesForFlags( 4, vtfpp::VTF::PLATFORM_PC );
+		for ( unsigned int i = 0; i < textureFlags.size(); i++ )
+		{
+			auto flag = 1 << i;
+			auto check = flagChecks_.find( flag )->second;
+			auto flagString = textureFlags.at( i );
+
+			check->setText( std::string { flagString.data(), flagString.data() + flagString.length() }.data() );
+			check->setCheckable( false );
+			check->setChecked( false );
+		}
+
 		return;
 	}
 
@@ -195,6 +208,9 @@ void ImageSettingsWidget::set_vtf( const VTFContainer &file )
 	{
 		auto flag = 1 << i;
 		auto check = flagChecks_.find( flag )->second;
+		auto flagString = textureFlags.at( i );
+
+		check->setText( std::string { flagString.data(), flagString.data() + flagString.length() }.data() );
 		check->setCheckable( true );
 		qInfo() << ( flags & flag );
 		check->setChecked( flags & flag );

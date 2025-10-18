@@ -26,52 +26,25 @@ void ResourceWidget::set_vtf( vtfpp::VTF *file )
 	auto resources = file->getResources();
 
 	int totalCount = resources.size();
-	for ( auto resource : resources )
-	{
-		//		auto type = resource;
-		//		uint32_t size;
-
-		//		auto data = file->GetResourceData( type, size );
-
-		if ( resource.type == vtfpp::Resource::TYPE_KEYVALUES_DATA )
-		{
-			totalCount--;
-			auto pVMTFile = kvpp::KV1 { resource.getDataAsKeyValuesData() };
-
-			if ( pVMTFile.isInvalid() )
-			{
-				continue;
-			}
-
-			totalCount += pVMTFile.getChildCount();
-		}
-	}
-
 	table_->setRowCount( totalCount );
-	//	resources = file->GetResourceCount();
-	// TODO: properly add KV resources.
-
-	//	for ( uint32_t i = 0, count = 0; i < resources; ++i )
-	//	{
-	//		auto type = file->GetResourceType( i );
-	//		uint32_t size;
-	//
-	//		auto data = file->GetResourceData( type, size );
-	//
+	
 	int i = 0;
 	for ( auto resource : resources )
 	{
 		//		if ( resource.type != vtfpp::Resource::TYPE_KEYVALUES_DATA )
 		{
-			table_->setItem( i, 0, new QTableWidgetItem( GetResourceName( resource.type ) ) );
+			auto resourceItem = new QTableWidgetItem( GetResourceName( resource.type ) );
+			resourceItem->setFlags( Qt::NoItemFlags );
+			table_->setItem( i, 0, resourceItem );
 
 			auto typeItem = new QTableWidgetItem( fmt::format( FMT_STRING( "0x{}" ), (uint32_t)resource.type ).c_str() );
+			typeItem->setFlags( Qt::NoItemFlags );
 			table_->setItem( i, 1, typeItem );
 
 			uint32_t size = resource.data.size_bytes();
 
-			auto sizeItem =
-				new QTableWidgetItem( fmt::format( FMT_STRING( "{} bytes ({} KiB)" ), size, size / 1024.f ).c_str() );
+			auto sizeItem = new QTableWidgetItem( fmt::format( FMT_STRING( "{} bytes ({} KiB)" ), size, size / 1024.f ).c_str() );
+			sizeItem->setFlags( Qt::NoItemFlags );
 			table_->setItem( i, 2, sizeItem );
 			i++;
 		}
