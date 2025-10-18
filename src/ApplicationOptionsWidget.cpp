@@ -6,6 +6,7 @@
 #include <QColorDialog>
 #include <QComboBox>
 #include <QDialogButtonBox>
+#include <QFileDialog>
 #include <QFileInfo>
 #include <QGridLayout>
 #include <QGroupBox>
@@ -432,6 +433,10 @@ ApplicationOptionsDialog::ApplicationOptionsDialog( QWidget *parent ) :
 	themeComboBox->setCurrentIndex( themeComboBox->findData( theme.value( "theme" ).toInt() ) );
 	generalOptionsLayout->addWidget( themeComboBox, 2, 1 );
 
+	useNativeDialogCheckbox = settingCheckbox( tr( "Use Native Open/Save Dialog" ), generalOptionsWidget, tr( "Use the native OS open/save dialog instead of QT's built in dialog." ) );
+	useNativeDialogCheckbox->setChecked( !( options->get( OPT_USE_NATIVE_DIALOG, QFileDialog::Option() ).toVariant().value<QFileDialog::Option>() & QFileDialog::DontUseNativeDialog ) );
+	generalOptionsLayout->addWidget( useNativeDialogCheckbox, 3, 0, 1, 2 );
+
 	mainTabs->addTab( generalOptionsWidget, tr( "General" ) );
 
 	auto advancedOptionsWidget = new QWidget( this );
@@ -477,6 +482,7 @@ void ApplicationOptionsDialog::applyChanges()
 	QApplication::setStyle( styleComboBox->currentData().toString() );
 
 	options->set( OPT_START_MAXIMIZED, startMaxCheckbox->isChecked() );
+	options->set( OPT_USE_NATIVE_DIALOG, this->useNativeDialogCheckbox->isChecked() ? QFileDialog::Option() : QFileDialog::Option::DontUseNativeDialog );
 	options->set( ADV_STRATA_SOURCE, strataSourceCheckbox->isChecked() );
 	options->set( ADV_ALLOW_NON_PO2, nonPO2Checkbox->isChecked() );
 }

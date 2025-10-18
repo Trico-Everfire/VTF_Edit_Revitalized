@@ -13,6 +13,7 @@ constexpr std::string_view OPT_IMPORT_SETTINGS = "import_settings";
 constexpr std::string_view OPT_IMPORT_COUNT = "import_amount";
 constexpr std::string_view OPT_THEME_SETTINGS = "theme_settings";
 constexpr std::string_view OPT_CUSTOM_THEME = "theme_custom";
+constexpr std::string_view OPT_USE_NATIVE_DIALOG = "use_native_dialog";
 // Advanced
 constexpr std::string_view ADV_STRATA_SOURCE = "adv_support_strata";
 constexpr std::string_view ADV_ALLOW_NON_PO2 = "adv_allow_non_po2";
@@ -125,10 +126,12 @@ class ApplicationOptionsDialog : public QDialog
 	QCheckBox *startMaxCheckbox;
 	QComboBox *styleComboBox;
 	QComboBox *themeComboBox;
+	QCheckBox *useNativeDialogCheckbox;
+
 	// Advanced
 	QCheckBox *strataSourceCheckbox;
-
 	QCheckBox *nonPO2Checkbox;
+
 	void applyChanges();
 
 	void areYouSure();

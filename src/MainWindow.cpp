@@ -323,7 +323,7 @@ bool CMainWindow::separateSpriteSheetVTF()
 	if ( !pVTF->getResource( vtfpp::Resource::TYPE_PARTICLE_SHEET_DATA ) )
 		return false;
 
-	auto saveLocation = QFileDialog::getExistingDirectory( this, "Save To:" );
+	auto saveLocation = QFileDialog::getExistingDirectory( this, "Save To:", options->get( STR_OPEN_RECENT, QJsonArray { QDir::currentPath() } ).toVariant().toStringList().last(), options->get( OPT_USE_NATIVE_DIALOG, QFileDialog::Option() ).toVariant().value<QFileDialog::Option>() );
 	if ( saveLocation.isEmpty() )
 		return false;
 
@@ -508,7 +508,7 @@ void CMainWindow::compressVTFFile()
 	auto recentPaths = options->get( STR_OPEN_RECENT, QJsonArray { QDir::currentPath() } ).toVariant().toStringList();
 
 	QStringList filePaths = QFileDialog::getOpenFileNames(
-		this, "Open VTF", recentPaths.last(), "*.vtf", nullptr, QFileDialog::Option::DontUseNativeDialog );
+		this, "Open VTF", recentPaths.last(), "*.vtf", nullptr, options->get( OPT_USE_NATIVE_DIALOG, QFileDialog::Option() ).toVariant().value<QFileDialog::Option>() );
 
 	if ( filePaths.isEmpty() )
 		return;
@@ -537,7 +537,7 @@ void CMainWindow::compressVTFFile()
 	auto recentPaths = options->get( STR_OPEN_RECENT, QJsonArray { QDir::currentPath() } ).toVariant().toStringList();
 
 	QStringList filePaths = QFileDialog::getOpenFileNames(
-		this, "Open VTF", recentPaths.last(), "*.vtf", nullptr, QFileDialog::Option::DontUseNativeDialog );
+		this, "Open VTF", recentPaths.last(), "*.vtf", nullptr, options->get( OPT_USE_NATIVE_DIALOG, QFileDialog::Option() ).toVariant().value<QFileDialog::Option>() );
 
 	if ( filePaths.isEmpty() )
 		return;
@@ -727,7 +727,7 @@ void CMainWindow::compressVTFFolder()
 
 	auto recentPaths = options->get( STR_OPEN_RECENT, QJsonArray { QDir::currentPath() } ).toVariant().toStringList();
 	QString dirPath = QFileDialog::getExistingDirectory(
-		this, "Open VTF", recentPaths.last(), QFileDialog::Option::DontUseNativeDialog );
+		this, "Open VTF", recentPaths.last(), options->get( OPT_USE_NATIVE_DIALOG, QFileDialog::Option() ).toVariant().value<QFileDialog::Option>() );
 
 	if ( dirPath.isEmpty() )
 		return;
@@ -833,7 +833,8 @@ void CMainWindow::compressVTFFolder()
 
 	connect( pSelectDestinationLocation, &QPushButton::pressed, pCompressionDialog, [pDestinationLocation, &recentPaths]
 			 {
-				 pDestinationLocation->setText( QFileDialog::getExistingDirectory( nullptr, "Save to:", recentPaths.last() ) );
+				 auto options = ApplicationOptions::getInstance();
+				 pDestinationLocation->setText( QFileDialog::getExistingDirectory( nullptr, "Save to:", recentPaths.last(), options->get( OPT_USE_NATIVE_DIALOG, QFileDialog::Option() ).toVariant().value<QFileDialog::Option>() ) );
 			 } );
 
 	// This is fine, ->exec() stalls the application until closed so compress never falls
@@ -1115,11 +1116,11 @@ void CMainWindow::batchConvert()
 	//
 	//	QString importFrom = QFileDialog::getExistingDirectory(
 	//		this, "Import From", recentPaths.last(),
-	//		QFileDialog::Option::DontUseNativeDialog );
+	//		options->get( OPT_USE_NATIVE_DIALOG, QFileDialog::Option() ).toVariant().value<QFileDialog::Option>());
 	//
 	//	QString exportTo = QFileDialog::getExistingDirectory(
 	//		this, "Export To", recentPaths.last(),
-	//		QFileDialog::Option::DontUseNativeDialog );
+	//		options->get( OPT_USE_NATIVE_DIALOG, QFileDialog::Option() ).toVariant().value<QFileDialog::Option>());
 	//
 	//	if ( importFrom.isEmpty() )
 	//		return;
@@ -1263,7 +1264,7 @@ void CMainWindow::importFromFile()
 
 	QStringList filePaths = QFileDialog::getOpenFileNames(
 		this, "Open", recentPaths.last(), supportedWildcardImageList.join( " " ) + " *.vtf", nullptr,
-		QFileDialog::Option::DontUseNativeDialog );
+		options->get( OPT_USE_NATIVE_DIALOG, QFileDialog::Option() ).toVariant().value<QFileDialog::Option>() );
 
 	if ( filePaths.isEmpty() )
 		return;
@@ -1330,7 +1331,7 @@ void CMainWindow::openVTF()
 	auto recentPaths = options->get( STR_OPEN_RECENT, QJsonArray { QDir::currentPath() } ).toVariant().toStringList();
 
 	QString filePath = QFileDialog::getOpenFileName(
-		this, "Open VTF", recentPaths.last(), "*.vtf", nullptr, QFileDialog::Option::DontUseNativeDialog );
+		this, "Open VTF", recentPaths.last(), "*.vtf", nullptr, options->get( OPT_USE_NATIVE_DIALOG, QFileDialog::Option() ).toVariant().value<QFileDialog::Option>() );
 
 	if ( filePath.isEmpty() )
 		return;
@@ -1426,7 +1427,7 @@ void CMainWindow::fontToVTF()
 	auto recentPaths = options->get( STR_OPEN_RECENT, QJsonArray { QDir::currentPath() } ).toVariant().toStringList();
 
 	QString filePath = QFileDialog::getOpenFileName(
-		this, "Open TTF/OTF", recentPaths.last(), "*.ttf *.otf", nullptr, QFileDialog::Option::DontUseNativeDialog );
+		this, "Open TTF/OTF", recentPaths.last(), "*.ttf *.otf", nullptr, options->get( OPT_USE_NATIVE_DIALOG, QFileDialog::Option() ).toVariant().value<QFileDialog::Option>() );
 
 	if ( filePath.isEmpty() )
 		return;
@@ -1533,7 +1534,7 @@ void CMainWindow::exportVTFToFile()
 	QString filePath = QFileDialog::getSaveFileName(
 		this, fImageAmount > 1 ? "Export to *" : "Export to _x*",
 		recentPaths.last(), supportedWildcardImageList.join( " " ), nullptr,
-		QFileDialog::Option::DontUseNativeDialog );
+		options->get( OPT_USE_NATIVE_DIALOG, QFileDialog::Option() ).toVariant().value<QFileDialog::Option>() );
 
 	if ( filePath.isEmpty() )
 		return;
@@ -1600,7 +1601,7 @@ void CMainWindow::saveVTFToFile( intptr_t key, bool saveAs )
 	{
 		filePath = QFileDialog::getSaveFileName(
 			this, "Save VTF",
-			QFileInfo( recentPaths.last() ).completeBaseName(), "*.vtf", nullptr );
+			QFileInfo( recentPaths.last() ).completeBaseName(), "*.vtf", nullptr, options->get( OPT_USE_NATIVE_DIALOG, QFileDialog::Option() ).toVariant().value<QFileDialog::Option>() );
 	}
 	else
 	{
