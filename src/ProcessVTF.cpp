@@ -238,8 +238,37 @@ void CVTFCreationDialog::applyChanges()
 		vtf->setKeyValuesDataResource( informationKeyValue.bake() );
 	}
 
-	if ( !this->useImageData )
+	if ( !this->useImageData || standalone )
 		return;
+
+	auto settings = ApplicationOptions::getInstance()->get( IMPORT_MENU_SETTINGS, IMPORT_DEFAULTS ).toObject();
+	settings.insert( "format", (int)options.textureFormat );
+	settings.insert( "format_alpha", (int)options.alphaTextureFormat );
+	settings.insert( "texture_type", options.imageType );
+	settings.insert( "vtf_version", options.version );
+	settings.insert( "enable_compression", options.enable_compression );
+	settings.insert( "compression_method", (int)options.compression_method );
+	settings.insert( "compression_level", options.compression_level );
+	settings.insert( "generate_thumbnail", options.generate_thumbnail );
+	settings.insert( "generate_reflectivity", options.compute_reflectivity );
+	settings.insert( "red_lumen", options.lumen_red );
+	settings.insert( "green_lumen", options.lumen_green );
+	settings.insert( "blue_lumen", options.lumen_blue );
+	settings.insert( "resize_method", (int)options.resize_method );
+	settings.insert( "resize_filter", (int)options.resize_filter );
+	settings.insert( "should_clamp", options.clamp );
+	settings.insert( "clamp_width", options.max_width );
+	settings.insert( "clamp_height", options.max_height );
+	settings.insert( "gen_mipmaps", options.generate_mipmaps );
+	settings.insert( "mipmap_filter", (int)options.mipmap_filter );
+	settings.insert( "lod_control_enabled", options.lod_control_resource );
+	settings.insert( "lod_strength", options.lod_control_strength );
+	settings.insert( "lod_threshold", options.lod_control_threshold );
+	settings.insert( "information_enabled", options.information_resource );
+	settings.insert( "information_author", options.information_author );
+	settings.insert( "information_contact", options.information_contact );
+	settings.insert( "information_organization", options.information_organization );
+	ApplicationOptions::getInstance()->set( IMPORT_MENU_SETTINGS, settings );
 }
 void CVTFCreationDialog::insertVTFData()
 {
@@ -337,8 +366,6 @@ CGeneralTab::CGeneralTab( QWidget *parent, bool standalone ) :
 	CompressionTypeBox->addItem( tr( "Deflate" ), (int)vtfpp::CompressionMethod::DEFLATE );
 	CompressionTypeBox->addItem( tr( "ZSTD" ), (int)vtfpp::CompressionMethod::ZSTD );
 
-	CompressionTypeBox->setCurrentIndex( settings.value( "compression_method" ).toInt() );
-
 	compressionBoxLayout->addWidget( CompressionTypeBox, 0, 1, Qt::AlignRight );
 
 	pCompressionTypeStandaloneCheckbox = new QCheckBox();
@@ -369,6 +396,8 @@ CGeneralTab::CGeneralTab( QWidget *parent, bool standalone ) :
 					 CompressionLevelBox->addItem( QString::number( i ), i );
 				 }
 			 } );
+
+	CompressionTypeBox->setCurrentIndex( CompressionTypeBox->findData( settings.value( "compression_method" ).toInt() ) );
 
 	CompressionLevelBox->setCurrentIndex( settings.value( "compression_level" ).toInt() );
 

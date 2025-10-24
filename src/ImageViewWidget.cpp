@@ -126,10 +126,11 @@ void ImageViewWidget::paintGL()
 	// Todo: check for transparent/translucent window flag and apply clearColor Alpha then.
 	this->glClearColor( clearColor.redF(), clearColor.greenF(), clearColor.blueF(), 1.0f );
 	this->glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-	
+
 	glEnable( GL_BLEND );
 	glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
 	this->glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
 
 	shaderProgram->bind();
